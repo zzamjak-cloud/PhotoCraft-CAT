@@ -371,10 +371,10 @@ fn the_cat_panel_is_docked_by_default_and_its_buttons_run_features() {
     h.get_by_label("Guide from top").click();
     h.run_steps(4);
     assert_eq!(guide_key(h.state()), "h30,h50,v100", "기본 오프셋 30");
-    // 미구현 기능은 알림 모달로 알린다
+    // 기능 실패는 알림 모달로 알린다 (미저장 문서의 Clean PSD)
     h.get_by_label("Clean PSD").click();
     h.run_steps(4);
-    assert!(h.state().cat.modals.front().is_some_and(|m| m.message.contains("미구현")));
+    assert!(h.state().cat.modals.front().is_some_and(|m| m.message.contains("Clean PSD 실패")));
     h.get_by_label("OK").click();
     h.run_steps(4);
     assert!(h.state().cat.modals.is_empty());

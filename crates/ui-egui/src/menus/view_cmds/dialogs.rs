@@ -313,7 +313,12 @@ pub(super) fn front(app: &mut PhotocraftApp, ctx: &egui::Context, id: &str, para
                 }
                 app.refocus(doc)?;
                 let linked = linked.then(|| name.clone());
-                let result = app.place_bytes(&name, bytes, linked)?;
+                let result = app.place_bytes(&name, bytes, linked);
+                // CAT "Drop PNG as pixel layer": PNG 스마트 오브젝트를 바로 픽셀 레이어로 바꿨으면 변형은 건너뛴다
+                if crate::cat::features::auto_paste_png::after_place(app, &result) {
+                    return result;
+                }
+                let result = result?;
                 crate::transform_tool::begin_placed(app, &ctx)?;
                 Ok(result)
             }))

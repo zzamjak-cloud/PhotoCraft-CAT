@@ -91,3 +91,30 @@ pub fn put_pixels_as_layer(app: &mut PhotocraftApp, img: &RgbaImage, name: &str,
         Ok(id)
     })
 }
+
+/// 이미지 파일(PNG/JPG/WebP 등)을 열지 않고 디코드해 합성 픽셀로 읽는다 (임시 문서 불필요)
+pub fn load_image_file(path: &std::path::Path) -> CatResult<RgbaImage> {
+    let bytes = std::fs::read(path).map_err(|e| format!("파일을 읽을 수 없습니다 ({}): {e}", path.display()))?;
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let r = photocraft_io::import(&name, &bytes).map_err(|e| format!("{name} 을(를) 읽을 수 없습니다: {e}"))?;
+    let doc = &r.document;
+    let surface = photocraft_compose::flatten_to_surface(doc, PixelFormat::RGBA8, None);
+    Ok(read(&surface, doc.size.width, doc.size.height))
+}
+
+/// 스마트 오브젝트 원본(임베디드 바이트 또는 링크 파일)을 원본 해상도 합성 픽셀로 읽는다 → (이미지, 원본 파일명)
+pub fn smart_object_source_pixels(app: &PhotocraftApp, id: LayerId) -> CatResult<(RgbaImage, String)> {
+    let st = app.session.active().ok_or("열린 문서가 없습니다.")?;
+    let layer = st.doc.layer(id).ok_or("레이어를 찾을 수 없습니다.")?;
+    let LayerContent::Smart(so) = &layer.content else { return Err(format!("\"{}\" 레이어는 스마트 오브젝트가 아닙니다.", layer.name)) };
+    let (file_name, bytes) = match &so.source {
+        photocraft_doc::SmartSource::Embedded { file_name, bytes } => (file_name.clone(), bytes.to_vec()),
+        photocraft_doc::SmartSource::Linked { path } => {
+            let name = std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            (name, std::fs::read(path).map_err(|e| format!("링크 파일을 읽을 수 없습니다 ({path}): {e}"))?)
+        }
+    };
+    let doc = photocraft_engine::smart_cmds::decode_source(&file_name, &bytes).map_err(|e| e.to_string())?;
+    let surface = photocraft_compose::flatten_to_surface(&doc, PixelFormat::RGBA8, None);
+    Ok((read(&surface, doc.size.width, doc.size.height), file_name))
+}

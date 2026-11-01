@@ -5,7 +5,7 @@ use crate::PhotocraftApp;
 use crate::cat::features::import_files::ImportKind;
 use crate::cat::features::size_presets::{self, ARRAY_COLUMNS, ARRAY_GRID_SIZE, IMPORT_DOC_SIZE};
 use crate::cat::features::{apply_grid_layout, auto_paste_png, import_files};
-use crate::cat::lib::core::{pick_folder, run_safe};
+use crate::cat::lib::core::{alert, pick_folder, run_safe};
 
 pub fn show(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     section(app, ui, "IMPORT", |app, ui| {
@@ -39,6 +39,8 @@ pub fn show(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
 fn import(app: &mut PhotocraftApp, kind: ImportKind, label: &'static str) {
     let size = size_presets::selected_size(&app.cat, &IMPORT_DOC_SIZE);
     pick_folder(app, move |app, folder| {
-        run_safe(app, label, |app| import_files::run(app, kind, &folder, size));
+        if let Some(None) = run_safe(app, label, |app| import_files::run(app, kind, &folder, size)) {
+            alert(app, format!("선택한 폴더에 {} 파일이 없습니다.", kind.extension().to_uppercase()));
+        }
     });
 }

@@ -319,6 +319,10 @@ impl PhotocraftApp {
                     (name, placed)
                 }
             };
+            // CAT "Drop PNG as pixel layer": 켜져 있으면 PNG 스마트 오브젝트를 바로 픽셀 레이어로 바꾸고 변형은 건너뛴다
+            if crate::cat::features::auto_paste_png::after_place(self, &placed) {
+                continue;
+            }
             match placed {
                 Ok(_) => {
                     if let Err(e) = crate::transform_tool::begin_placed(self, ctx) {

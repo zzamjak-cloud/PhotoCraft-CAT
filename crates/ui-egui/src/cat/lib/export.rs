@@ -127,3 +127,11 @@ pub fn open_file(app: &mut PhotocraftApp, path: &Path) -> CatResult<DocId> {
 pub fn active_doc_path(app: &PhotocraftApp) -> Option<PathBuf> {
     doc::active_doc(app).and_then(|d| d.path)
 }
+
+/// 파일을 활성 문서에 **링크된** 스마트 오브젝트로 배치 (UXP newPlacedLayer + relinkToFile 대응) → 새 레이어 ID.
+/// 원본 크기(100%), 캔버스 가운데. 레이어 이름은 파일명(확장자 제외).
+pub fn place_linked(app: &mut PhotocraftApp, path: &Path) -> CatResult<photocraft_doc::LayerId> {
+    let path_str = path.to_str().ok_or_else(|| format!("경로에 사용할 수 없는 문자가 있습니다: {}", path.display()))?;
+    let r = super::core::exec(app, "file.placeLinked", serde_json::json!({"path": path_str, "scale": 100, "fit": false}))?;
+    super::layer::layer_id_of(&r).ok_or_else(|| format!("{} 을(를) 배치하지 못했습니다.", file_name(path)))
+}

@@ -46,6 +46,8 @@ web-time = { workspace = true }
 # Floating panels open in their own OS windows on the desktop; the web keeps them in the page.
 craft-ui = { workspace = true, features = ["native-windows"] }
 craft-update = { workspace = true }
+# CAT Search icons (Iconify API): craft-update 와 같은 ureq 버전·기능이라 새 크레이트가 늘지 않는다.
+ureq = { version = "3.4", default-features = false, features = ["rustls-no-provider", "_ring", "gzip", "platform-verifier"] }
 rayon = { workspace = true }
 # Safe native UI-language APIs (Windows/macOS); no subprocess or web dependency.
 sys-locale = "=0.3.2"

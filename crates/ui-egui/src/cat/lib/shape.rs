@@ -1,9 +1,15 @@
 //! Shape/Path 생성·읽기 (CAT lib_shape.js · JP_Plugin lib_shape.ts 대응).
-//! Phase 2(Outline stroke / Expand path / Image trace / Import SVG)에서 채운다. 지금은 시그니처만 확정한다.
+//! 읽기는 문서 모델을 직접 보고, 변경은 엔진 명령(`shape.*`, `path.*`, Undo 가능)으로 한다.
+//!
+//! CAT pathContents 의 컴포넌트 하나(여러 subpath)는 여기서 첫 subpath 의 `op` + 나머지 `Join` 으로 표현한다
+//! (`Join` subpath 는 같은 컴포넌트로 함께 채워져 역방향 내부 루프가 구멍이 된다).
 
-use photocraft_doc::LayerId;
+use photocraft_doc::{Fill, LayerContent, LayerId, LineCap, LineJoin, StrokeAlign};
+use photocraft_geom::Point;
+use serde_json::{Value, json};
 
-use super::core::{CatResult, unimplemented_feature};
+use super::core::{CatResult, exec, try_exec};
+use super::layer::layer_id_of;
 use crate::PhotocraftApp;
 
 /// 베지어 정점 (anchor + 들어오는/나가는 핸들, 문서 픽셀)
@@ -17,25 +23,105 @@ pub struct Knot {
     pub smooth: bool,
 }
 
+impl Knot {
+    /// 핸들 없는 코너 정점
+    pub fn corner(x: f64, y: f64) -> Self {
+        Self { anchor: [x, y], backward: [x, y], forward: [x, y], smooth: false }
+    }
+}
+
+/// 서브패스 결합 연산 (CAT shapeOperation 대응, `Join` = 앞 컴포넌트에 포함)
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PathOp {
+    #[default]
+    Combine,
+    Subtract,
+    Intersect,
+    Exclude,
+    Join,
+}
+
+impl PathOp {
+    fn key(self) -> &'static str {
+        match self {
+            PathOp::Combine => "combine",
+            PathOp::Subtract => "subtract",
+            PathOp::Intersect => "intersect",
+            PathOp::Exclude => "exclude",
+            PathOp::Join => "join",
+        }
+    }
+}
+
 /// 서브패스
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Subpath {
     pub closed: bool,
     pub knots: Vec<Knot>,
+    pub op: PathOp,
 }
 
-/// 패스 (여러 서브패스, 같은 셰이프 연산)
+/// 패스 (여러 서브패스)
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ShapePath {
     pub subpaths: Vec<Subpath>,
+    /// even-odd 채우기 규칙 (기본 nonzero)
+    pub even_odd: bool,
 }
 
-/// 셰이프 레이어 생성 옵션
+impl ShapePath {
+    /// 전체 정점 수
+    pub fn knot_count(&self) -> usize {
+        self.subpaths.iter().map(|s| s.knots.len()).sum()
+    }
+
+    /// 엔진 compact JSON (`shape.create` / `path.set` 의 path)
+    pub fn to_json(&self) -> Value {
+        json!({
+            "subpaths": self.subpaths.iter().map(|s| json!({
+                "closed": s.closed,
+                "op": s.op.key(),
+                "knots": s.knots.iter().map(|k| json!({"anchor": k.anchor, "in": k.backward, "out": k.forward, "smooth": k.smooth})).collect::<Vec<_>>(),
+            })).collect::<Vec<_>>(),
+            "fillRule": if self.even_odd { "evenodd" } else { "nonzero" },
+        })
+    }
+}
+
+impl From<&photocraft_doc::Path> for ShapePath {
+    fn from(p: &photocraft_doc::Path) -> Self {
+        let pt = |q: Point| [q.x, q.y];
+        ShapePath {
+            subpaths: p
+                .subpaths
+                .iter()
+                .map(|s| Subpath {
+                    closed: s.closed,
+                    knots: s.knots.iter().map(|k| Knot { anchor: pt(k.anchor), backward: pt(k.in_ctrl), forward: pt(k.out_ctrl), smooth: k.smooth }).collect(),
+                    op: match s.op {
+                        photocraft_doc::PathOp::Combine => PathOp::Combine,
+                        photocraft_doc::PathOp::Subtract => PathOp::Subtract,
+                        photocraft_doc::PathOp::Intersect => PathOp::Intersect,
+                        photocraft_doc::PathOp::Exclude => PathOp::Exclude,
+                        photocraft_doc::PathOp::Join => PathOp::Join,
+                    },
+                })
+                .collect(),
+            even_odd: p.fill_rule == photocraft_doc::FillRule::EvenOdd,
+        }
+    }
+}
+
+/// 셰이프 레이어 생성 옵션 (기본: 검정 채우기, 스트로크 없음 — CAT 과 동일)
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ShapeOptions {
     pub name: Option<String>,
-    /// 채우기 RGB
+    /// 채우기 RGB (None 이면 검정)
     pub fill: Option<[u8; 3]>,
+    /// 채우기 끄기 (스트로크만)
+    pub no_fill: bool,
+    /// 스트로크 (enabled 이고 width > 0 일 때만 적용)
+    pub stroke: Option<StrokeSettings>,
 }
 
 /// 스트로크 설정 (CAT getStrokeSettings 대응)
@@ -52,42 +138,218 @@ pub struct StrokeSettings {
     pub color: [u8; 3],
 }
 
-/// 패스로 셰이프 레이어 생성 → 레이어 ID (CAT createShapeFromPathContents)
-pub fn create_shape_from_path(_app: &mut PhotocraftApp, _path: &ShapePath, _options: &ShapeOptions) -> CatResult<LayerId> {
-    unimplemented_feature()
+/// RGB → "#rrggbb"
+pub fn rgb_hex(c: [u8; 3]) -> String {
+    format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2])
+}
+
+/// 단색 Fill 의 RGB (그라디언트·패턴이면 None)
+pub fn solid_rgb(f: &Fill) -> Option<[u8; 3]> {
+    match f {
+        Fill::Solid(c) => {
+            let [r, g, b, _] = c.to_rgba8();
+            Some([r, g, b])
+        }
+        _ => None,
+    }
+}
+
+fn stroke_json(s: &StrokeSettings) -> Value {
+    let align = match s.alignment.as_str() {
+        "inside" | "inner" => "inside",
+        "outside" | "outer" => "outside",
+        _ => "center",
+    };
+    json!({"width": s.width, "color": rgb_hex(s.color), "opacity": 100, "align": align, "cap": s.cap, "join": s.join})
+}
+
+/// 패스로 셰이프 레이어 생성 → 레이어 ID (CAT createShapeFromPathContents). 새 레이어는 활성 레이어 위에 생긴다.
+pub fn create_shape_from_path(app: &mut PhotocraftApp, path: &ShapePath, options: &ShapeOptions) -> CatResult<LayerId> {
+    if path.subpaths.iter().all(|s| s.knots.is_empty()) {
+        return Err("패스가 비어 있습니다.".into());
+    }
+    let fill = if options.no_fill { Value::Null } else { json!(rgb_hex(options.fill.unwrap_or([0, 0, 0]))) };
+    let stroke = options.stroke.as_ref().filter(|s| s.enabled && s.width > 0.0).map_or(Value::Null, stroke_json);
+    let mut p = json!({"kind": "path", "path": path.to_json(), "fill": fill, "stroke": stroke});
+    if let Some(name) = &options.name {
+        p["name"] = json!(name);
+    }
+    let r = exec(app, "shape.create", p)?;
+    layer_id_of(&r).ok_or_else(|| "셰이프 레이어를 만들지 못했습니다.".into())
 }
 
 /// 셰이프 채우기 색 변경 (CAT setShapeColor)
-pub fn set_shape_color(_app: &mut PhotocraftApp, _layer: LayerId, _rgb: [u8; 3]) -> CatResult<()> {
-    unimplemented_feature()
+pub fn set_shape_color(app: &mut PhotocraftApp, layer: LayerId, rgb: [u8; 3]) -> CatResult<()> {
+    exec(app, "shape.edit", json!({"layer": layer.0, "fill": rgb_hex(rgb)})).map(|_| ())
 }
 
-/// 셰이프 레이어 패스 읽기 (CAT getShapePathData)
-pub fn get_shape_path(_app: &PhotocraftApp, _layer: LayerId) -> CatResult<ShapePath> {
-    unimplemented_feature()
+fn with_layer<T>(app: &PhotocraftApp, layer: LayerId, f: impl FnOnce(&photocraft_doc::Layer) -> CatResult<T>) -> CatResult<T> {
+    let st = app.session.active().ok_or("열린 문서가 없습니다.")?;
+    let l = st.doc.layer(layer).ok_or("레이어를 찾을 수 없습니다.")?;
+    f(l)
 }
 
-/// 셰이프 채우기 색 읽기 (CAT getShapeFillColor)
-pub fn get_shape_fill_color(_app: &PhotocraftApp, _layer: LayerId) -> CatResult<[u8; 3]> {
-    unimplemented_feature()
+/// 셰이프 레이어(또는 벡터 마스크) 패스 읽기 (CAT getShapePathData)
+pub fn get_shape_path(app: &PhotocraftApp, layer: LayerId) -> CatResult<ShapePath> {
+    with_layer(app, layer, |l| match (&l.content, &l.vector_mask) {
+        (LayerContent::Shape(sh), _) => Ok(ShapePath::from(&sh.path)),
+        (_, Some(vm)) => Ok(ShapePath::from(&vm.path)),
+        _ => Err(format!("\"{}\" 레이어에 Vector Mask 데이터가 없습니다.", l.name)),
+    })
 }
 
-/// 셰이프 스트로크 설정 읽기 (CAT getStrokeSettings)
-pub fn get_stroke_settings(_app: &PhotocraftApp, _layer: LayerId) -> CatResult<Option<StrokeSettings>> {
-    unimplemented_feature()
+/// 셰이프 채우기 색 읽기 (CAT getShapeFillColor). 단색이 아니면 흰색.
+pub fn get_shape_fill_color(app: &PhotocraftApp, layer: LayerId) -> CatResult<[u8; 3]> {
+    with_layer(app, layer, |l| match &l.content {
+        LayerContent::Shape(sh) => Ok(sh.fill.as_ref().and_then(solid_rgb).unwrap_or([255, 255, 255])),
+        _ => Err(format!("\"{}\" 레이어는 셰이프 레이어가 아닙니다.", l.name)),
+    })
 }
 
-/// 선택 영역 → Work Path (CAT makeWorkPath)
-pub fn make_work_path(_app: &mut PhotocraftApp, _tolerance: f64) -> CatResult<()> {
-    unimplemented_feature()
+/// 셰이프 스트로크 설정 읽기 (CAT getStrokeSettings). 셰이프가 아니면 None, 스트로크가 없으면 enabled=false.
+pub fn get_stroke_settings(app: &PhotocraftApp, layer: LayerId) -> CatResult<Option<StrokeSettings>> {
+    with_layer(app, layer, |l| {
+        let LayerContent::Shape(sh) = &l.content else { return Ok(None) };
+        let Some(s) = &sh.stroke else {
+            return Ok(Some(StrokeSettings {
+                enabled: false,
+                width: 0.0,
+                alignment: "center".into(),
+                cap: "butt".into(),
+                join: "miter".into(),
+                color: [255, 255, 255],
+            }));
+        };
+        Ok(Some(StrokeSettings {
+            enabled: s.width > 0.0,
+            width: f64::from(s.width),
+            alignment: match s.align {
+                StrokeAlign::Inside => "inside",
+                StrokeAlign::Center => "center",
+                StrokeAlign::Outside => "outside",
+            }
+            .into(),
+            cap: match s.cap {
+                LineCap::Butt => "butt",
+                LineCap::Round => "round",
+                LineCap::Square => "square",
+            }
+            .into(),
+            join: match s.join {
+                LineJoin::Miter => "miter",
+                LineJoin::Round => "round",
+                LineJoin::Bevel => "bevel",
+            }
+            .into(),
+            color: solid_rgb(&s.paint).unwrap_or([255, 255, 255]),
+        }))
+    })
 }
 
-/// Work Path 읽기 (CAT getWorkPath)
-pub fn get_work_path(_app: &PhotocraftApp) -> CatResult<Option<ShapePath>> {
-    unimplemented_feature()
+/// 선택 영역 → Work Path (CAT makeWorkPath, tolerance 0.5~10 px)
+pub fn make_work_path(app: &mut PhotocraftApp, tolerance: f64) -> CatResult<()> {
+    exec(app, "select.toWorkPath", json!({"tolerance": tolerance.clamp(0.5, 10.0)})).map(|_| ())
 }
 
-/// Work Path 삭제 (CAT deleteWorkPath)
-pub fn delete_work_path(_app: &mut PhotocraftApp) -> CatResult<()> {
-    unimplemented_feature()
+/// Work Path 읽기 (CAT getWorkPath, 없으면 None)
+pub fn get_work_path(app: &PhotocraftApp) -> CatResult<Option<ShapePath>> {
+    let st = app.session.active().ok_or("열린 문서가 없습니다.")?;
+    Ok(st.doc.work_path.as_ref().map(ShapePath::from))
+}
+
+/// Work Path 삭제 (CAT deleteWorkPath, 없으면 무시)
+pub fn delete_work_path(app: &mut PhotocraftApp) -> CatResult<()> {
+    try_exec(app, "path.delete", json!({"name": "work"}));
+    Ok(())
+}
+
+/// Work Path → 단색 셰이프 레이어 (CAT makeLayerFromPath) → 새 레이어 ID (Work Path 없으면 None)
+pub fn make_layer_from_work_path(app: &mut PhotocraftApp, rgb: [u8; 3]) -> CatResult<Option<LayerId>> {
+    let Some(path) = get_work_path(app)? else { return Ok(None) };
+    create_shape_from_path(app, &path, &ShapeOptions { fill: Some(rgb), ..Default::default() }).map(Some)
+}
+
+/// 선택 영역 → Work Path → 셰이프 레이어 (CAT convertPathToShape) → 새 레이어 ID
+pub fn convert_path_to_shape(app: &mut PhotocraftApp, rgb: [u8; 3], tolerance: f64) -> CatResult<Option<LayerId>> {
+    make_work_path(app, tolerance)?;
+    let id = make_layer_from_work_path(app, rgb)?;
+    delete_work_path(app)?;
+    Ok(id)
+}
+
+/// SVG 에서 읽은 셰이프 하나 (페인트 순서, SVG 캔버스 픽셀 좌표)
+#[derive(Clone, Debug, PartialEq)]
+pub struct SvgShape {
+    pub path: ShapePath,
+    /// 채우기 RGB (fill="none" 이면 None, 그라디언트는 첫 정지점 색)
+    pub fill: Option<[u8; 3]>,
+    /// 스트로크 (enabled=true)
+    pub stroke: Option<StrokeSettings>,
+}
+
+/// SVG 파싱 결과
+#[derive(Clone, Debug, PartialEq)]
+pub struct SvgShapes {
+    /// SVG 캔버스 크기 (viewBox 를 width/height 로 맞춘 픽셀)
+    pub width: f64,
+    pub height: f64,
+    pub shapes: Vec<SvgShape>,
+}
+
+fn fill_rgb(f: &Fill) -> [u8; 3] {
+    match f {
+        Fill::Gradient { stops, .. } => stops.first().map_or([0, 0, 0], |(_, c)| {
+            let [r, g, b, _] = c.to_rgba8();
+            [r, g, b]
+        }),
+        f => solid_rgb(f).unwrap_or([0, 0, 0]),
+    }
+}
+
+fn collect_svg_shapes(layers: &[photocraft_doc::Layer], out: &mut Vec<SvgShape>) {
+    // 문서 레이어는 아래→위 저장 = SVG 페인트 순서
+    for l in layers {
+        if let Some(children) = l.children() {
+            collect_svg_shapes(children, out);
+            continue;
+        }
+        let LayerContent::Shape(sh) = &l.content else { continue };
+        let stroke = sh.stroke.as_ref().filter(|s| s.width > 0.0).map(|s| StrokeSettings {
+            enabled: true,
+            width: f64::from(s.width),
+            alignment: "center".into(),
+            cap: match s.cap {
+                LineCap::Butt => "butt",
+                LineCap::Round => "round",
+                LineCap::Square => "square",
+            }
+            .into(),
+            join: match s.join {
+                LineJoin::Miter => "miter",
+                LineJoin::Round => "round",
+                LineJoin::Bevel => "bevel",
+            }
+            .into(),
+            color: fill_rgb(&s.paint),
+        });
+        let fill = sh.fill.as_ref().map(fill_rgb);
+        // 채우기도 스트로크도 없는 path(배경 rect 등)는 버린다
+        if fill.is_none() && stroke.is_none() {
+            continue;
+        }
+        let mut path = ShapePath::from(&sh.path);
+        // CAT 과 같이 핸들이 있는 점은 smooth 로 표시
+        for k in path.subpaths.iter_mut().flat_map(|s| s.knots.iter_mut()) {
+            k.smooth = k.backward != k.anchor || k.forward != k.anchor;
+        }
+        out.push(SvgShape { path, fill, stroke });
+    }
+}
+
+/// SVG 바이트 → 셰이프 목록 (usvg 파싱: CSS·use·transform·단위 해석 포함). 셰이프로 표현할 수 없는 요소는 건너뛴다.
+pub fn parse_svg_shapes(bytes: &[u8]) -> CatResult<SvgShapes> {
+    let r = photocraft_io::svg::import_svg("svg", bytes).map_err(|e| format!("SVG를 읽을 수 없습니다: {e}"))?;
+    let mut shapes = Vec::new();
+    collect_svg_shapes(&r.document.layers, &mut shapes);
+    Ok(SvgShapes { width: f64::from(r.document.size.width), height: f64::from(r.document.size.height), shapes })
 }

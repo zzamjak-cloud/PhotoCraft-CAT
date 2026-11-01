@@ -202,3 +202,20 @@ pub fn crop_doc(app: &mut PhotocraftApp, x: i32, y: i32, width: u32, height: u32
 pub fn flatten(app: &mut PhotocraftApp) -> CatResult<()> {
     exec(app, "layer.flattenImage", json!({})).map(|_| ())
 }
+
+/// 스마트 오브젝트 레이어의 내용을 임시 새 문서로 연다 (UXP placedLayerEditContents 대응) → 새 문서 ID.
+/// Edit Contents 와 달리 원본과 연결하지 않으므로, 닫아도 스마트 오브젝트에 반영되지 않는다 (CAT 은 저장 없이 닫음).
+pub fn open_smart_object_contents(app: &mut PhotocraftApp, layer: photocraft_doc::LayerId) -> CatResult<DocId> {
+    let st = app.session.active().ok_or("열린 문서가 없습니다.")?;
+    let (name, bytes) = photocraft_engine::smart_cmds::contents_of(&st.doc, layer).map_err(|e| format!("스마트 오브젝트 내용을 읽을 수 없습니다: {e}"))?;
+    let mut contents = photocraft_engine::smart_cmds::decode_source(&name, &bytes).map_err(|e| e.to_string())?;
+    contents.id = DocId::fresh();
+    contents.name = name;
+    let index = app.session.add_document(contents, None);
+    app.sync_views();
+    // 등록 시 ID 가 바뀔 수 있으므로 돌려받은 인덱스로 다시 읽는다
+    let id = app.session.documents().get(index).map(|d| d.doc.id).ok_or("스마트 오브젝트 내용 문서를 열지 못했습니다.")?;
+    register_temp_doc(app, id);
+    activate_doc(app, id)?;
+    Ok(id)
+}

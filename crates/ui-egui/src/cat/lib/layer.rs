@@ -293,3 +293,30 @@ pub fn action_command(app: &mut PhotocraftApp, command: &str, params: Value) -> 
 pub fn layer_id_of(r: &Value) -> Option<LayerId> {
     r.get("layer").and_then(Value::as_u64).map(LayerId)
 }
+
+/// 스마트 오브젝트를 외부 파일에 **링크** (UXP placedLayerRelinkToFile 대응). 같은 내용을 공유하는 인스턴스도 함께 바뀐다.
+pub fn relink_to_file(app: &mut PhotocraftApp, id: LayerId, path: &std::path::Path) -> CatResult<()> {
+    let path = path.to_str().ok_or_else(|| format!("경로에 사용할 수 없는 문자가 있습니다: {}", path.display()))?;
+    exec(app, "layer.smartObjects.relinkToFile", json!({"layer": id.0, "path": path})).map(|_| ())
+}
+
+/// 문서의 배경(Background) 레이어인지 (UXP isBackgroundLayer 대응)
+pub fn is_background_layer(app: &PhotocraftApp, id: LayerId) -> bool {
+    app.session.active().is_some_and(|st| st.doc.is_background(id))
+}
+
+/// 레이어 마스크를 픽셀에 적용하고 제거 (마스크가 없으면 false; UXP removeMask(apply) 대응)
+pub fn apply_layer_mask(app: &mut PhotocraftApp, id: LayerId) -> bool {
+    layer_by_id(app, id).is_some_and(|l| l.has_mask) && try_exec(app, "layer.layerMask.apply", json!({"layer": id.0})).is_some()
+}
+
+/// 꺼진(숨김) 레이어 효과의 인덱스 (문서 모델 `effects.items` 순서)
+pub fn hidden_effect_indices(app: &PhotocraftApp, id: LayerId) -> Vec<usize> {
+    let Some(l) = app.session.active().and_then(|st| st.doc.layer(id)) else { return Vec::new() };
+    l.effects.items.iter().enumerate().filter(|(_, e)| !e.enabled()).map(|(i, _)| i).collect()
+}
+
+/// 레이어 효과 하나 삭제 (index: `effects.items` 순서)
+pub fn remove_layer_effect(app: &mut PhotocraftApp, id: LayerId, index: usize) -> CatResult<()> {
+    exec(app, "layer.layerStyle.clear", json!({"layer": id.0, "effect": index})).map(|_| ())
+}

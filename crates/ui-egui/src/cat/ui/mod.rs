@@ -4,6 +4,7 @@
 pub mod export;
 pub mod extra;
 pub mod guide;
+pub mod icon_search;
 pub mod icons;
 pub mod import;
 pub mod nine_slice;

@@ -8,20 +8,24 @@ use crate::cat::features::export_selected_layers::LayerFileType;
 use crate::cat::features::export_speed_save::{NEEDS_FOLDER, SpeedFormat};
 use crate::cat::features::image_trace::TraceSettings;
 use crate::cat::features::{
-    clean_psd, export_market_screenshot, export_selected_and_link, export_selected_layers, export_speed_save, folder_preset, icon_search, image_trace,
+    clean_psd, export_market_screenshot, export_selected_and_link, export_selected_layers, export_speed_save, folder_preset, image_trace,
     outline_stroke, patch_maker, sorting_layer, split_to_layers, svg_to_shape_layer,
 };
 use crate::cat::lib::CatResult;
-use crate::cat::lib::core::{alert, pick_files, pick_folder, prompt, run_safe};
+use crate::cat::lib::core::{alert, confirm, notify, pick_files, pick_folder, prompt, run_safe};
 
 pub fn show(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
+    // Icon Search 창은 섹션이 접혀 있어도 그린다
+    super::icon_search::show(app, ui.ctx());
     section(app, ui, "EXPORT", |app, ui| {
         folder_dropdown(app, ui);
         ui.horizontal(|ui| {
             if icon_button(ui, "link_1", "Export PNG & link").clicked() {
                 with_export_folder(app, "Export PNG & link", |app, folder| {
                     let keep = app.cat.settings.keep_doc_size;
-                    export_selected_and_link::run(app, &folder, keep).map(|_| ())
+                    let n = export_selected_and_link::run(app, &folder, keep)?.len();
+                    notify(app, format!("{n}개 내보내고 링크했습니다."));
+                    Ok(())
                 });
             }
             if icon_button(ui, "export_all_lays_import_psd", "Export layers as PSD").clicked() {
@@ -38,7 +42,7 @@ pub fn show(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
         ui.separator();
         ui.horizontal(|ui| {
             if icon_button(ui, "psd_cleaner", "Clean PSD").clicked() {
-                run_safe(app, "Clean PSD", clean_psd::run);
+                clean_psd_flow(app);
             }
             if icon_button(ui, "split_to_layers", "Split to layers").clicked() {
                 run_safe(app, "Split to layers", split_to_layers::run);
@@ -69,14 +73,14 @@ pub fn show(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                 image_trace_prompts(app);
             }
             if icon_button(ui, "export_market_screenshop", "Market screenshot").clicked() {
-                with_doc_or_picked_folder(app, "Market screenshot", |app, folder| export_market_screenshot::run(app, folder.as_deref()).map(|_| ()));
+                with_doc_or_picked_folder(app, "Market screenshot", |app, folder| {
+                    let n = export_market_screenshot::run(app, folder.as_deref())?;
+                    notify(app, format!("{n}개 JPG 내보내기가 완료되었습니다."));
+                    Ok(())
+                });
             }
             if icon_button(ui, "import_searchicon", "Search icons").clicked() {
-                prompt(app, "Search icons", "", |app, query| {
-                    if !query.trim().is_empty() {
-                        run_safe(app, "Search icons", |app| icon_search::run(app, query.trim()));
-                    }
-                });
+                super::icon_search::open(ui.ctx());
             }
         });
         ui.horizontal(|ui| {
@@ -163,6 +167,27 @@ fn with_doc_or_picked_folder(app: &mut PhotocraftApp, label: &'static str, f: im
             run_safe(app, label, |app| f(app, Some(folder)));
         }),
         None => {}
+    }
+}
+
+/// Clean PSD: 미저장 변경이 있으면 확인 후 진행 (변경 내용은 정리본에 포함되어 원본 경로에 저장된다)
+fn clean_psd_flow(app: &mut PhotocraftApp) {
+    let done = |app: &mut PhotocraftApp, path: PathBuf| notify(app, format!("Clean PSD 완료: {}", path.display()));
+    let background = std::mem::replace(&mut app.background_jobs, false);
+    let first = clean_psd::run(app, false);
+    app.background_jobs = background;
+    match first {
+        Ok(path) => done(app, path),
+        Err(e) if e == clean_psd::NEEDS_CONFIRM => confirm(
+            app,
+            "저장되지 않은 변경 사항을 포함해 원본 경로에 정리된 PSD를 저장하고 문서를 닫습니다. 계속할까요?",
+            move |app| {
+                if let Some(path) = run_safe(app, "Clean PSD", |app| clean_psd::run(app, true)) {
+                    done(app, path);
+                }
+            },
+        ),
+        Err(e) => alert(app, format!("Clean PSD 실패:\n{e}")),
     }
 }
 
