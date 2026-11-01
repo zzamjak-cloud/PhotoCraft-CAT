@@ -11,7 +11,7 @@ use crate::theme::ThemeKind;
 #[test]
 fn bad_stored_values_are_sanitised() {
     let mut l = DockLayout { order: vec![Group::Layers, Group::Layers, Group::Color], ..Default::default() };
-    assert_eq!(l.order(), vec![Group::Layers, Group::Brushes, Group::Color, Group::Properties, Group::Character, Group::Navigator, Group::History]);
+    assert_eq!(l.order(), vec![Group::Layers, Group::Brushes, Group::Color, Group::Properties, Group::Character, Group::Navigator, Group::History, Group::Cat]);
     for bad in [f32::NAN, -10.0, f32::INFINITY, 1e12] {
         l.heights.insert(Group::Color, bad);
         let h = l.height(Group::Color);
@@ -19,7 +19,10 @@ fn bad_stored_values_are_sanitised() {
     }
     // Unknown fields, wrong types and old UI state all load.
     let back: DockLayout = serde_json::from_value(json!({"order": ["layers"], "bogus": 1})).unwrap();
-    assert_eq!(back.order(), vec![Group::Layers, Group::Brushes, Group::Color, Group::Properties, Group::Character, Group::Navigator, Group::History]);
+    assert_eq!(
+        back.order(),
+        vec![Group::Layers, Group::Brushes, Group::Color, Group::Properties, Group::Character, Group::Navigator, Group::History, Group::Cat]
+    );
     let mut ui = serde_json::to_value(crate::state::UiState::default()).unwrap();
     ui.as_object_mut().unwrap().remove("dock");
     let ui: crate::state::UiState = serde_json::from_value(ui).unwrap();
@@ -28,6 +31,8 @@ fn bad_stored_values_are_sanitised() {
 
 fn app_with_layers() -> (PhotocraftApp, photocraft_doc::LayerId, photocraft_doc::LayerId) {
     let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
+    // 업스트림 도크 레이아웃 불변식을 검사하므로 CAT 그룹은 닫는다 (CAT 은 cat::tests 가 검사)
+    app.ui.panels.cat = false;
     app.run("file.new", json!({"width": 200, "height": 150})).unwrap();
     app.run("layer.new.layer", json!({})).unwrap();
     let pixel = app.session.active().unwrap().active_layer.unwrap();
@@ -489,6 +494,8 @@ fn app_harness_rows(size: egui::Vec2, theme: ThemeKind, n: usize) -> Harness<'st
         PhotocraftApp::setup_context(&cc.egui_ctx, theme);
         let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
         app.ui.theme = theme;
+        // #147 의 Layers 행 수 불변식은 업스트림 기본 그룹 기준 (CAT 그룹 제외)
+        app.ui.panels.cat = false;
         app.run("file.new", json!({"width": 200, "height": 150})).unwrap();
         for i in 0..n {
             app.run("layer.new.layer", json!({"name": format!("Row {i:02}")})).unwrap();
@@ -587,7 +594,10 @@ fn window_character_opens_its_own_group_and_keeps_properties() {
     let old = DockLayout { order: vec![Group::Color, Group::Properties, Group::Navigator, Group::History, Group::Layers], ..Default::default() };
     assert_eq!(old.order(), Group::ALL.to_vec());
     let moved = DockLayout { order: vec![Group::Layers, Group::Color], ..Default::default() };
-    assert_eq!(moved.order(), vec![Group::Layers, Group::Brushes, Group::Color, Group::Properties, Group::Character, Group::Navigator, Group::History]);
+    assert_eq!(
+        moved.order(),
+        vec![Group::Layers, Group::Brushes, Group::Color, Group::Properties, Group::Character, Group::Navigator, Group::History, Group::Cat]
+    );
 }
 
 #[test]
@@ -683,6 +693,7 @@ fn navigator_preview_fills_its_group_and_keeps_aspect() {
                 let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
                 app.ui.theme = theme;
                 app.ui.panels.navigator = true;
+                app.ui.panels.cat = false;
                 app.ui.dock.heights.insert(Group::Navigator, tall);
                 app.run("file.new", json!({"width": 200, "height": 300})).unwrap();
                 app.sync_views();

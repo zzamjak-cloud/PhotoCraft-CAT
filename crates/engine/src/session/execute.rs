@@ -187,6 +187,15 @@ impl Session {
         self.edit_with(label, true, f)
     }
 
+    /// [`Self::edit`] joining the history step of the commands run with the same `coalesce` key
+    /// (CAT 패널이 명령과 직접 편집을 Undo 한 단계로 묶을 때 사용).
+    pub fn edit_coalesced<R>(&mut self, label: &str, key: Option<&str>, f: impl FnOnce(&mut Document, &mut Option<LayerId>) -> Result<R>) -> Result<R> {
+        self.coalesce_request = key.map(str::to_string);
+        let r = self.edit_with(label, true, f);
+        self.coalesce_request = None;
+        r
+    }
+
     /// Apply a change of layer visibility (and nothing else): a history state when History
     /// Options › Make Layer Visibility Changes Undoable is on (the default, as in Photoshop),
     /// otherwise the document changes without one, so the History panel and Undo skip it.

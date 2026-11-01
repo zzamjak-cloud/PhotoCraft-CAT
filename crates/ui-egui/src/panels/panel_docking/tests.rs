@@ -168,7 +168,12 @@ fn a_fresh_launch_draws_the_native_groups_beside_the_protected_canvas() {
     assert!(valid(&layout));
     assert_eq!(
         root_groups(&layout),
-        [vec!["color", "swatches", "gradients", "patterns"], vec!["properties", "adjustments"], vec!["layers", "channels", "paths"]]
+        [
+            vec!["color", "swatches", "gradients", "patterns"],
+            vec!["properties", "adjustments"],
+            vec!["catTools", "nineSlice"],
+            vec!["layers", "channels", "paths"]
+        ]
     );
     assert!(in_dock_column(&layout, "layers"), "the groups are a dock column: {layout:?}");
     let canvas = canvas_rect(&h);
@@ -208,7 +213,13 @@ fn a_panel_never_laid_out_opens_in_its_default_group_and_side() {
     assert!(in_dock_column(layout, "navigator"), "{layout:?}");
     assert_eq!(
         root_groups(layout),
-        [vec!["color", "swatches", "gradients", "patterns"], vec!["properties", "adjustments"], vec!["navigator"], vec!["layers", "channels", "paths"]]
+        [
+            vec!["color", "swatches", "gradients", "patterns"],
+            vec!["properties", "adjustments"],
+            vec!["navigator"],
+            vec!["catTools", "nineSlice"],
+            vec!["layers", "channels", "paths"]
+        ]
     );
     app.run("window.panel.activate", json!({"panel":"info"})).unwrap();
     app.run("window.panel.activate", json!({"panel":"histogram"})).unwrap();
@@ -219,7 +230,10 @@ fn a_panel_never_laid_out_opens_in_its_default_group_and_side() {
 
 #[test]
 fn a_tab_dropped_on_the_canvas_floats_there_and_redocks() {
-    let mut h = harness(app(), vec2(1280.0, 800.0));
+    // 업스트림 기본 그룹 기준의 드롭 위치 검사 (CAT 그룹 제외)
+    let mut app = app();
+    app.ui.panels.cat = false;
+    let mut h = harness(app, vec2(1280.0, 800.0));
     let canvas = canvas_rect(&h);
     let source = tab_rect(&h, "layers").center();
     let target = egui::pos2(canvas.left() + canvas.width() / 6.0, canvas.center().y);
@@ -858,7 +872,13 @@ fn main_workspace_file_loads_as_the_default_and_saves_as_a_workspace() {
     let layout = &workspace.layout;
     assert_eq!(
         root_groups(layout),
-        [vec!["color", "swatches", "gradients", "patterns"], vec!["properties", "adjustments"], vec!["history", "actions"], vec!["layers", "channels"]]
+        [
+            vec!["color", "swatches", "gradients", "patterns"],
+            vec!["properties", "adjustments"],
+            vec!["history", "actions"],
+            vec!["catTools", "nineSlice"],
+            vec!["layers", "channels"]
+        ]
     );
     assert!(in_dock_column(layout, "layers") && panel_active(layout, "actions"));
     for (panel, _, _) in PANELS {

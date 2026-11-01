@@ -41,6 +41,8 @@ const PANELS: &[(&str, &str, Group)] = &[
     ("channels", "Channels", Group::Layers),
     ("paths", "Paths", Group::Layers),
     ("brushes", "Brushes", Group::Brushes),
+    ("catTools", "CAT Tools", Group::Cat),
+    ("nineSlice", "9-Slice Images", Group::Cat),
 ];
 
 /// PhotoCraft's wording of craft-ui's docking labels, translated through `tl!`. The others keep
@@ -1135,6 +1137,7 @@ pub(crate) fn prepare_legacy_update(
                 Group::History => tabs.history,
                 Group::Layers => tabs.layers,
                 Group::Brushes => tabs.brushes,
+                Group::Cat => tabs.cat,
             };
             let id = group.tabs(pro).get(index).and_then(|label| normalize(label)).ok_or("dockTabs index is outside the panel group")?;
             if visibility == Some(false) {

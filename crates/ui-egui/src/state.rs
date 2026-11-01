@@ -37,6 +37,9 @@ pub struct Panels {
     /// Window › Brushes: dockable panel, like Photoshop's.
     #[serde(default)]
     pub brushes: bool,
+    /// Window › CAT: CAT Tools | 9-Slice Images 도크 그룹. 기존 사용자에게도 보이도록 기본값 true.
+    #[serde(default = "yes")]
+    pub cat: bool,
     /// Window › Character / Paragraph: the Character | Paragraph dock group (#150).
     #[serde(default)]
     pub character: bool,
@@ -80,6 +83,7 @@ impl Default for Panels {
             status_bar: true,
             brush_settings: false,
             brushes: false,
+            cat: true,
             character: false,
             toolbar_double: false,
             dock: true,

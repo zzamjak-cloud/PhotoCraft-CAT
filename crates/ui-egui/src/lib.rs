@@ -26,6 +26,8 @@ macro_rules! tl {
 }
 mod brush_mode_menu;
 pub mod canvas;
+/// CAT 플러그인 이식 패널 (CAT Tools / 9-Slice Images).
+pub mod cat;
 pub mod control;
 pub mod dialogs;
 pub mod dock;
@@ -337,6 +339,8 @@ pub struct PhotocraftApp {
     pub session: Session,
     pub ui: UiState,
     pub services: Services,
+    /// CAT 패널 상태 (설정·히스토리 그룹·모달 큐).
+    pub cat: cat::CatState,
     /// Canvas caches per (document, display): CPU textures hold monitor values; the GPU
     /// canvas state is shared (`canvas::GPU_OUTPUT`).
     canvases: HashMap<(DocId, u32), canvas::CanvasCache>,

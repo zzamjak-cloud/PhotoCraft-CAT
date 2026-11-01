@@ -46,13 +46,14 @@ fn rail(app: &mut PhotocraftApp, ui: &mut egui::Ui, t: &Tokens) {
             ui.painter().line_segment([pos2(x, r.top() - 8.0), pos2(x, r.bottom() + 8.0)], Stroke::new(1.0, t.separator));
             ui.spacing_mut().item_spacing.y = 4.0;
             use crate::dock::Group;
-            let entries: [(&str, &str, Group); 6] = [
+            let entries: [(&str, &str, Group); 7] = [
                 ("sliders-horizontal", tl!("Properties"), Group::Properties),
                 ("navigation", tl!("Navigator"), Group::Navigator),
                 ("palette", tl!("Color & Swatches"), Group::Color),
                 ("layers", tl!("Layers"), Group::Layers),
                 ("clock", tl!("History"), Group::History),
                 ("brush", tl!("Brushes"), Group::Brushes),
+                ("grid-3x3", "CAT", Group::Cat),
             ];
             for (icon, name, g) in entries {
                 // Studio floats Properties outside the dock.
@@ -118,5 +119,7 @@ pub(crate) fn dock_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, group: crate
         (Group::Layers, 1) => channels(app, ui),
         (Group::Layers, _) => crate::vector_ui::paths_panel(app, ui),
         (Group::Brushes, _) => crate::brushes_tab::show(app, ui),
+        (Group::Cat, 0) => crate::cat::tools_panel(app, ui),
+        (Group::Cat, _) => crate::cat::nine_slice_panel(app, ui),
     }
 }

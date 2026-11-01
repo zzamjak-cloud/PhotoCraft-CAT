@@ -12,6 +12,7 @@ pub(crate) fn panel_alias(id: &str) -> Option<&'static str> {
         "options" => "window.toggle.options",
         "brushSettings" => "window.toggle.brushSettings",
         "brushes" => "window.toggle.brushes",
+        "cat" => "window.toggle.cat",
         _ => return None,
     })
 }
@@ -763,6 +764,7 @@ fn toggle_panel(app: &mut PhotocraftApp, id: &str) -> Result<Value, String> {
         "options" => &mut panels.options_bar,
         "brushSettings" => &mut panels.brush_settings,
         "brushes" => &mut panels.brushes,
+        "cat" => &mut panels.cat,
         "dock" => &mut panels.dock,
         _ => return Err(format!("unknown panel in {id}")),
     };

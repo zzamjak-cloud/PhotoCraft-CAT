@@ -50,6 +50,8 @@ fn app_harness_stepped(kind: &str, mode: &str, depth: u32, step_dt: f32) -> Harn
         // The default Properties group gives way to Layers (#147) and scrolls taller editors;
         // these tests drive every control without scrolling, so they size it like a user would.
         app.ui.dock.heights.insert(crate::dock::Group::Properties, 560.0);
+        // CAT 그룹이 Properties 높이를 나눠 갖지 않도록 닫는다
+        app.ui.panels.cat = false;
         app
     });
     h.run_steps(8);

@@ -520,6 +520,10 @@ fn main() -> eframe::Result {
             #[cfg(not(target_os = "linux"))]
             let session = Session::new();
             PhotocraftApp::install_type_reset_hooks(&cc.egui_ctx);
+            // CAT 패널 영속 데이터: <설정 폴더>/cat
+            if let Some(dir) = services::config_dir() {
+                photocraft_ui_egui::cat::set_data_dir(dir.join("cat"));
+            }
             let mut app = PhotocraftApp::new(session, services);
             app.min_frame_ms = uncapped.then_some(1000.0 / 240.0);
             app.integrated_titlebar = cfg!(target_os = "macos");
