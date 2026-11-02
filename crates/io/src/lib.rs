@@ -59,6 +59,7 @@ mod ora;
 mod palette_map;
 pub use ora::losses as ora_losses;
 pub mod pattern_map;
+pub mod tpl_map;
 mod pcraft_cache;
 pub mod pdf;
 mod pdn;

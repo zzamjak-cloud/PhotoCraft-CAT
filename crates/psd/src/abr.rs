@@ -39,6 +39,8 @@ use crate::error::{PsdError, Result};
 use crate::header::Version;
 use crate::patterns::{PatternBudget, PsdPattern, parse_pattern_block_with, write_pattern_block};
 
+pub mod tpl;
+
 /// Largest sampled tip edge accepted (Photoshop's own limit is 5000 px).
 pub const MAX_EDGE: u32 = 8192;
 /// Most brushes read from one file.
@@ -339,7 +341,7 @@ const MAX_FOLDER_BYTES: usize = 16 << 20;
 /// read from `desc`), in order. Paths are built only for those presets, within
 /// [`MAX_FOLDER_BYTES`]: a small section can't make the reader allocate more than that. `None`
 /// (with a warning) when the section is unreadable.
-fn read_phry(data: &[u8], presets: usize, warnings: &mut Vec<String>) -> Option<Vec<Vec<String>>> {
+pub(crate) fn read_phry(data: &[u8], presets: usize, warnings: &mut Vec<String>) -> Option<Vec<Vec<String>>> {
     let vd = match VersionedDescriptor::parse_prefix(data) {
         Ok((vd, _)) => vd,
         Err(e) => {

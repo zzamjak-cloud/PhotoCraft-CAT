@@ -9,6 +9,10 @@
 //!   selection: dark pixels paint, white and transparent ones don't (TOOL-213-12).
 //! - `gradient.presets.importGrd` adds the gradients of a `.grd` file (version 5) to the
 //!   Gradients panel as one group.
+//! - `tool.presets.importTpl` adds the tool presets of a `.tpl` file: brush-tool presets bring
+//!   their brushes into the brush library as one group named after the file (a folder per tool)
+//!   and select them by name; embedded patterns join the Patterns panel. Parsing lives in
+//!   `photocraft-psd` (`abr::tpl`), the mapping in `photocraft-io` (`tpl_map`).
 //!
 //! [`BrushSettings`]: photocraft_paint::BrushSettings
 
@@ -115,6 +119,88 @@ fn import_abr(s: &mut Session, p: &Value) -> Result<Value> {
         },
         move |s, (group, imp)| add_abr_presets(s, &params_apply, group, imp),
     )
+}
+
+fn import_tpl(s: &mut Session, p: &Value) -> Result<Value> {
+    let cmd = "tool.presets.importTpl";
+    let params = p.clone();
+    crate::jobs::run(
+        s,
+        "Import Tool Presets",
+        false,
+        move |ctx| {
+            ctx.progress(0.0, "Importing tool presets");
+            let p = &params;
+            let (bytes, stem) = file_bytes_within(p, cmd, ".tpl file", MAX_ABR_FILE_BYTES)?;
+            let group = match p.get("group") {
+                Some(v) => v.as_str().map(str::trim).filter(|g| !g.is_empty()).ok_or_else(|| bad(cmd, "`group` must be a non-empty string"))?.to_string(),
+                None if !stem.is_empty() => stem,
+                None => "Imported Tool Presets".to_string(),
+            };
+            ctx.check()?;
+            let imp = ctx
+                .stage(0.05, 1.0, "Importing tool presets", |ctl| photocraft_io::tpl_map::read_tpl_with(&bytes, ctl))
+                .map_err(|e| if ctx.cancelled() { EngineError::Cancelled } else { bad(cmd, e) })?;
+            Ok((group, imp))
+        },
+        add_tpl_presets,
+    )
+}
+
+/// 가져온 `.tpl`: 패턴 → 패턴 라이브러리, 브러시 → 브러시 그룹 `group`(툴별 폴더), 툴 프리셋 →
+/// Tool Presets (브러시는 `brushPreset` 이름으로, 페인트통 패턴은 `pattern` 으로 참조).
+fn add_tpl_presets(s: &mut Session, (group, imp): (String, photocraft_io::tpl_map::TplImport)) -> Result<Value> {
+    let patterns = imp.patterns.len();
+    for pat in imp.patterns {
+        s.patterns.stored.remove(&pat.id);
+        s.patterns.upsert(pat);
+    }
+    let group = {
+        let groups: std::collections::HashSet<&str> = s.tools.presets.iter().map(|x| x.group.as_str()).collect();
+        free_group(&group, |g| groups.contains(g))
+    };
+    let mut taken = UniqueNames::new(s.tools.presets.iter().map(|x| x.name.as_str()));
+    let mut brush_names = Vec::with_capacity(imp.brushes.len());
+    for mut preset in imp.brushes {
+        preset.group.clone_from(&group);
+        preset.name = taken.unique(&preset.name);
+        brush_names.push(preset.name.clone());
+        s.tools.presets.push(preset);
+    }
+    if !brush_names.is_empty() {
+        s.brush_presets_changed();
+    }
+    let mut groups = [crate::presets::Group::new("", std::mem::take(&mut s.presets.tool_presets))];
+    let mut imported = Vec::new();
+    let mut warnings = imp.warnings;
+    for t in imp.tools {
+        if groups[0].items.len() >= crate::presets::tools::MAX_PRESETS {
+            warnings.push(format!("at most {} tool presets can be kept; the rest were skipped", crate::presets::tools::MAX_PRESETS));
+            break;
+        }
+        let mut options = json!({ "toolOptions": t.tool_options });
+        if let Some(name) = t.brush.and_then(|i| brush_names.get(i)) {
+            options["brushPreset"] = json!(name);
+        }
+        if let Some(pat) = t.pattern {
+            options["pattern"] = json!(pat);
+        }
+        let name = crate::presets::unique_name(&groups, &t.name);
+        imported.push(name.clone());
+        groups[0].items.push(crate::presets::tools::ToolPreset { name, tool: t.tool, options });
+    }
+    let [g] = groups;
+    s.presets.tool_presets = g.items;
+    s.presets_changed();
+    Ok(json!({
+        "group": group,
+        "imported": imported,
+        "count": imported.len(),
+        "brushes": brush_names.len(),
+        "patterns": patterns,
+        "duplicates": imp.duplicates,
+        "warnings": warnings,
+    }))
 }
 
 /// `name`, or `name (2)`, `name (3)`… when `taken` says it is in use.
@@ -262,6 +348,16 @@ pub fn specs() -> Vec<CommandSpec> {
             params: r##"{"path":".abr file"?,"data":base64 bytes?,"group":string?=file name,"replace":bool=false (first delete the non-built-in presets of a group of the same name; false imports beside it as <group> (2)),"select":bool=false (make the first imported preset current)} → {group, imported, count, folders (nested folders kept from the file), version, warnings}"##,
             enabled: always,
             run: import_abr,
+            journal: true,
+        },
+        CommandSpec {
+            id: "tool.presets.importTpl",
+            label: "Import Tool Presets…",
+            menu: &[],
+            shortcut: None,
+            params: r##"{"path":".tpl file"?,"data":base64 bytes?,"group":string?=file name (the brush group for brush-tool presets)} → {group, imported, count, brushes, patterns, duplicates, warnings}"##,
+            enabled: always,
+            run: import_tpl,
             journal: true,
         },
         CommandSpec {

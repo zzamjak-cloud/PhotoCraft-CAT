@@ -4,7 +4,8 @@
 //! Built-in shapes were drawn from scratch for PhotoCraft in a 100 × 100 box with a small path
 //! language ([`parse`]): `M x y`, `L x y…`, `C x1 y1 x2 y2 x y…`, `Q x1 y1 x y…`, `Z`, plus `O cx cy r`
 //! (a circle) and `!` before `M`/`O` to subtract that subpath (holes). Shapes defined with Edit ›
-//! Define Custom Shape appear in a trailing "Custom Shapes" group.
+//! Define Custom Shape appear in a trailing "Custom Shapes" group. `shape.presets.importCsh` adds
+//! the shapes of a Photoshop `.csh` file as a group named after the file (one per folder of it).
 
 use photocraft_doc::vector::{Knot, Path, PathOp, Subpath};
 use photocraft_geom::{Affine, Point, Rect};
@@ -426,6 +427,59 @@ fn reset(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(json!({"groups": s.presets.shapes.len()}))
 }
 
+/// Photoshop 사용자 정의 셰이프(`.csh`) 가져오기: 파일 폴더마다 그룹 하나
+/// (`파일명` 또는 `파일명 / 폴더`), 셰이프는 100 상자에 맞춰 넣는다.
+fn import_csh(s: &mut Session, p: &Value) -> Result<Value> {
+    const CMD: &str = "shape.presets.importCsh";
+    let (bytes, stem) = crate::preset_import_cmds::file_bytes(p, CMD, ".csh file")?;
+    let base = match str_param(p, "group").map(str::trim) {
+        Some(g) if !g.is_empty() => g.to_string(),
+        _ if !stem.trim().is_empty() => stem.trim().to_string(),
+        _ => "Imported Shapes".to_string(),
+    };
+    let f = photocraft_psd::csh::parse(&bytes).map_err(|e| bad(CMD, format!("not a readable custom shape file (.csh): {e}")))?;
+    let mut warnings = f.warnings.clone();
+    // 폴더 경로 → 셰이프들 (파일 순서 유지).
+    let mut by_folder: Vec<(Vec<String>, Vec<ShapePreset>)> = Vec::new();
+    for (i, sh) in f.shapes.iter().enumerate() {
+        let (w, h) = sh.size();
+        let path = photocraft_io::vector_map::path_from_records(&sh.path, w, h);
+        if path.is_empty() {
+            warnings.push(format!("shape \"{}\": empty path; skipped", sh.name));
+            continue;
+        }
+        let path = fit(&path, [0.0, 0.0, 100.0, 100.0], true);
+        let folder = f.folders.get(i).cloned().unwrap_or_default();
+        let item = ShapePreset { name: sh.name.clone(), path };
+        match by_folder.iter_mut().find(|(k, _)| *k == folder) {
+            Some((_, items)) => items.push(item),
+            None => by_folder.push((folder, vec![item])),
+        }
+    }
+    if by_folder.is_empty() {
+        return Err(bad(CMD, "the file holds no usable shapes"));
+    }
+    let mut groups = Vec::new();
+    let mut count = 0;
+    for (folder, items) in by_folder {
+        let name = if folder.is_empty() { base.clone() } else { format!("{base} / {}", folder.join(" / ")) };
+        let name = super::gradients::unique_group(&s.presets.shapes, &name);
+        s.presets.shapes.push(Group::new(&name, Vec::new()));
+        let gi = s.presets.shapes.len() - 1;
+        for mut item in items {
+            // 이름은 라이브러리 전체에서 유일하게 (place 가 이름으로 찾는다).
+            item.name = unique_name(&s.presets.shapes, &item.name);
+            if let Some(g) = s.presets.shapes.get_mut(gi) {
+                g.items.push(item);
+                count += 1;
+            }
+        }
+        groups.push(name);
+    }
+    s.presets_changed();
+    Ok(json!({"groups": groups, "count": count, "warnings": warnings}))
+}
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
@@ -466,6 +520,16 @@ pub fn specs() -> Vec<CommandSpec> {
             params: super::GROUP_EDIT_PARAMS,
             enabled: always,
             run: edit,
+            journal: true,
+        },
+        CommandSpec {
+            id: "shape.presets.importCsh",
+            label: "Import Shapes…",
+            menu: &[],
+            shortcut: None,
+            params: r##"{"path":".csh file"?,"data":base64 bytes?,"group":string?=file name} → {groups, count, warnings} (one group per folder of the file)"##,
+            enabled: always,
+            run: import_csh,
             journal: true,
         },
         CommandSpec {

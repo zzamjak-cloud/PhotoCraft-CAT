@@ -173,6 +173,26 @@ fn key(label: &str) -> String {
     l.trim_end_matches('…').trim().to_lowercase()
 }
 
+/// Photoshop CC 가 우리와 다르게 부르는 메뉴 라벨([`key`] 형태) → 우리 라벨. 라벨로 못 찾은
+/// 행만 이것으로 다시 찾는다.
+fn alias(label: &str) -> Option<&'static str> {
+    // Undo 는 마지막 동작 이름이 붙어 저장된다 ("Undo Deselect").
+    if label.starts_with("undo ") {
+        return Some("undo");
+    }
+    if label.starts_with("redo ") {
+        return Some("redo");
+    }
+    Some(match label {
+        "save for web" => "save for web (legacy)",
+        "character panel" => "character",
+        "paragraph panel" => "paragraph",
+        "unite shapes at overlap" => "intersect shape areas",
+        "subtract shapes at overlap" => "exclude overlapping shapes",
+        _ => return None,
+    })
+}
+
 /// The engine's own candidates: every command in a menu (the engine's, then the shell's), in
 /// command order.
 pub fn command_candidates() -> Vec<Candidate> {
@@ -200,7 +220,8 @@ pub fn plan(candidates: impl IntoIterator<Item = Candidate>, set: &KysSet) -> Pl
     for row in &set.commands {
         // A set PhotoCraft wrote names the command itself, whatever its label says.
         let own = row.id.as_deref().and_then(|id| by_id.get(id)).map(|c| vec![(*c).clone()]);
-        let Some(candidates) = own.as_ref().or_else(|| by_label.get(&key(&row.name))) else {
+        let label = key(&row.name);
+        let Some(candidates) = own.as_ref().or_else(|| by_label.get(&label)).or_else(|| alias(&label).and_then(|a| by_label.get(a))) else {
             plan.unknown.push(row.name.clone());
             continue;
         };
@@ -387,6 +408,30 @@ mod tests {
 
     /// A set nested 20 000 deep overflowed the XML parser's recursion (an abort nothing can
     /// catch); it is an error now. The small stack makes a regression abort instead of passing.
+    #[test]
+    fn photoshop_cc_labels_find_our_commands() {
+        let xml = r#"<photoshop-keyboard-shortcuts version="4">
+            <command kind="static" id="101" name="Undo Deselect"><shortcut>Ctrl+Z</shortcut></command>
+            <command kind="static" id="1695" name="Save for Web..."><shortcut>Alt+Shift+Ctrl+S</shortcut></command>
+            <command kind="static" id="3411" name="Unite Shapes at Overlap"><shortcut>F10</shortcut></command>
+            <command kind="static" id="3300" name="Character Panel"><shortcut>Alt+F11</shortcut></command>
+        </photoshop-keyboard-shortcuts>"#;
+        let set = parse(xml).unwrap();
+        let p = plan(
+            [
+                c("edit.undo", "Undo", Some("Cmd+Z")),
+                c("file.export.saveForWebLegacy", "Save for Web (Legacy)…", None),
+                c("layer.combineShapes.intersectShapeAreas", "Intersect Shape Areas", None),
+                c("window.panel.character", "Character", None),
+            ],
+            &set,
+        );
+        assert!(p.unknown.is_empty(), "{:?}", p.unknown);
+        assert_eq!(p.set.get("layer.combineShapes.intersectShapeAreas").map(String::as_str), Some("F10"));
+        assert_eq!(p.set.get("window.panel.character").map(String::as_str), Some("Alt+F11"));
+        assert_eq!(p.set.len(), 4);
+    }
+
     #[test]
     fn deeply_nested_sets_are_an_error_not_a_stack_overflow() {
         let xml = format!("<photoshop-keyboard-shortcuts>{}{}</photoshop-keyboard-shortcuts>", "<a>".repeat(20_000), "</a>".repeat(20_000));

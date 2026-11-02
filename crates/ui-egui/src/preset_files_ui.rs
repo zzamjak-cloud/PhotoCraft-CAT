@@ -5,7 +5,9 @@
 //! `style.presets.importAsl`, swatches (`.aco`, `.act`, `.ase`) to the Swatches panel through
 //! `swatches.import`, patterns (`.pat`) to the Patterns panel through `pattern.import`, keyboard
 //! shortcut sets (`.kys`) to Edit › Keyboard Shortcuts through
-//! [`crate::kys_import`], instead of opening as documents. Import Brushes… also takes an image
+//! [`crate::kys_import`], tool presets (`.tpl`) to the Tool Presets panel through
+//! `tool.presets.importTpl`, custom shapes (`.csh`) to the Shapes panel through
+//! `shape.presets.importCsh`, instead of opening as documents. Import Brushes… also takes an image
 //! file, which becomes a brush tip through `brush.presets.importImage` (TOOL-213-12).
 
 use serde_json::{Value, json};
@@ -16,7 +18,7 @@ use crate::PhotocraftApp;
 /// the Swatches panel through [`crate::swatches_ui::import_bytes`]).
 /// `.psp` is Photoshop's live `Keyboard Shortcuts.psp` (the same XML as a `.kys`); other `.psp`
 /// settings files are refused with a clear message.
-pub const PRESET_EXTS: &[&str] = &["abr", "grd", "asl", "pat", "aco", "act", "ase", "kys", "psp"];
+pub const PRESET_EXTS: &[&str] = &["abr", "grd", "asl", "pat", "aco", "act", "ase", "kys", "psp", "tpl", "csh"];
 
 fn ext(name: &str) -> String {
     std::path::Path::new(name).extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default()
@@ -91,6 +93,8 @@ pub fn open(app: &mut PhotocraftApp, name: &str, bytes: &[u8]) -> Option<Result<
         "grd" => ("gradient.presets.importGrd", "gradients"),
         "asl" => ("style.presets.importAsl", "styles"),
         "pat" => ("pattern.import", "patterns"),
+        "tpl" => ("tool.presets.importTpl", "tool presets"),
+        "csh" => ("shape.presets.importCsh", "shapes"),
         "aco" | "act" | "ase" => return Some(crate::swatches_ui::import_bytes(app, name, bytes, false).map(|_| ())),
         "kys" | "psp" => return Some(crate::kys_import::open_bytes(app, name, bytes).map(|_| ())),
         _ => return None,
@@ -135,6 +139,8 @@ pub(crate) fn run_import(app: &mut PhotocraftApp, cmd: &str, what: &str, stem: &
             "brushes" => ("Imported {n} brush from {file}", "Imported {n} brushes from {file}"),
             "styles" => ("Imported {n} style from {file}", "Imported {n} styles from {file}"),
             "patterns" => ("Imported {n} pattern from {file}", "Imported {n} patterns from {file}"),
+            "tool presets" => ("Imported {n} tool preset from {file}", "Imported {n} tool presets from {file}"),
+            "shapes" => ("Imported {n} shape from {file}", "Imported {n} shapes from {file}"),
             _ => ("Imported {n} gradient from {file}", "Imported {n} gradients from {file}"),
         };
         let imported = crate::i18n::fmt(&crate::i18n::trn(crate::i18n::current(), n, one, other), &[("file", stem)]);
@@ -158,6 +164,12 @@ pub(crate) fn run_import(app: &mut PhotocraftApp, cmd: &str, what: &str, stem: &
         if what == "styles" {
             app.ui.presets_ui.styles = true;
         }
+        if what == "tool presets" {
+            app.ui.presets_ui.tool_presets = true;
+        }
+        if what == "shapes" {
+            app.ui.presets_ui.shapes = true;
+        }
     })
 }
 
@@ -173,6 +185,8 @@ mod tests {
         assert!(is_preset_file("Brand.ACO"));
         assert!(is_preset_file("exchange.ase"));
         assert!(is_preset_file("Debaser-ColourLibrary-Part6.PAT"));
+        assert!(is_preset_file("MyToolpreset.tpl"));
+        assert!(is_preset_file("JP_Shape_Sets.CSH"));
         assert!(!is_preset_file("photo.psd"));
         assert!(!is_preset_file("abr"));
     }

@@ -157,14 +157,34 @@ fn select(s: &mut Session, p: &Value) -> Result<Value> {
         .find(|t| t.name == name)
         .cloned()
         .ok_or_else(|| bad(CMD, format!("no tool preset \"{name}\" (see tool.presets.list)")))?;
+    let mut options = t.options.clone();
     if let Some(b) = t.options.get("brush").filter(|b| b.is_object()) {
         super::call(s, "tools.setBrush", json!({"brush": b}))?;
+    }
+    // 가져온 Photoshop 툴 프리셋(.tpl): 브러시는 라이브러리의 브러시 프리셋을 이름으로 참조한다.
+    // 셸이 툴을 바꾼 뒤 다시 적용하도록 결과의 `brush` 로 돌려준다.
+    if let Some(bp) = t.options.get("brushPreset").and_then(Value::as_str)
+        && let Some(pr) = photocraft_paint::presets::find(&s.tools.presets, bp)
+    {
+        let mut b = pr.brush.clone().picked_over(&s.tools.brush);
+        s.load_brush_tips(&mut b).map_err(|e| bad(CMD, e))?;
+        s.tools.brush = b;
+        s.tools.current_preset = Some(bp.to_string());
+        s.tools.brush_changed();
+        options["brush"] = serde_json::to_value(&s.tools.brush).unwrap_or(Value::Null);
+    }
+    // 페인트통 패턴: id 또는 이름으로 찾아 현재 패턴으로.
+    if let Some(key) = t.options.get("pattern").and_then(Value::as_str)
+        && let Some(id) = s.patterns.items.iter().find(|p| p.id == key).or_else(|| s.patterns.items.iter().find(|p| p.name == key)).map(|p| p.id.clone())
+    {
+        s.presets.pattern = Some(id);
+        s.presets.rev += 1;
     }
     if let Some(c) = t.options.get("foreground").and_then(Value::as_array).filter(|a| a.len() >= 3) {
         let v: Vec<f32> = c.iter().map(|x| x.as_f64().unwrap_or(0.0) as f32).collect();
         s.tools.foreground = [v[0], v[1], v[2], v.get(3).copied().unwrap_or(1.0)];
     }
-    Ok(json!({"name": t.name, "tool": t.tool, "options": t.options}))
+    Ok(json!({"name": t.name, "tool": t.tool, "options": options}))
 }
 
 fn edit(s: &mut Session, p: &Value) -> Result<Value> {

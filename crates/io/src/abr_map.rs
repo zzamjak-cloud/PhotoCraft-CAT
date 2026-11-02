@@ -128,12 +128,31 @@ pub fn map_file_with(f: &AbrFile, group: &str, ctl: &photocraft_raster::Interrup
     Ok(out)
 }
 
+/// 프리셋 디스크립터마다 따로 매핑한다(`f.presets` 와 같은 순서·길이). 팁을 찾지 못한 프리셋은
+/// `None`. 툴 프리셋(`.tpl`)처럼 프리셋 순서로 다른 데이터를 이어 붙여야 하는 호출용.
+pub fn map_each_with(f: &AbrFile, ctl: &photocraft_raster::Interrupt) -> Result<(Vec<Option<BrushSettings>>, Vec<String>), photocraft_raster::Cancelled> {
+    let mut m = Mapper { file: f, warnings: BTreeSet::new(), unknown: BTreeSet::new(), tips: Default::default() };
+    let total = f.presets.len().max(1) as f32;
+    let mut out = Vec::with_capacity(f.presets.len());
+    for (i, d) in f.presets.iter().enumerate() {
+        ctl.check()?;
+        ctl.progress(i as f32 / total);
+        out.push(m.preset(d));
+    }
+    let mut warnings: Vec<String> = m.warnings.into_iter().collect();
+    if !m.unknown.is_empty() {
+        warnings.push(format!("settings without a PhotoCraft equivalent were ignored: {}", m.unknown.into_iter().collect::<Vec<_>>().join(", ")));
+    }
+    ctl.progress(1.0);
+    Ok((out, warnings))
+}
+
 // ------------------------------------------------------------------ descriptor helpers
 
 fn get<'a>(d: &'a Descriptor, k: &str) -> Option<&'a Value> {
     d.get(k)
 }
-fn num(d: &Descriptor, k: &str) -> Option<f64> {
+pub(crate) fn num(d: &Descriptor, k: &str) -> Option<f64> {
     match get(d, k)? {
         Value::Double(v) => Some(*v),
         Value::UnitFloat { value, .. } => Some(*value),
@@ -144,28 +163,28 @@ fn num(d: &Descriptor, k: &str) -> Option<f64> {
     .filter(|v| v.is_finite())
 }
 /// A percentage as a 0..1 fraction.
-fn pct(d: &Descriptor, k: &str) -> Option<f32> {
+pub(crate) fn pct(d: &Descriptor, k: &str) -> Option<f32> {
     num(d, k).map(|v| (v / 100.0) as f32)
 }
-fn boolean(d: &Descriptor, k: &str) -> Option<bool> {
+pub(crate) fn boolean(d: &Descriptor, k: &str) -> Option<bool> {
     match get(d, k)? {
         Value::Boolean(b) => Some(*b),
         _ => None,
     }
 }
-fn text(d: &Descriptor, k: &str) -> Option<String> {
+pub(crate) fn text(d: &Descriptor, k: &str) -> Option<String> {
     match get(d, k)? {
         Value::Text(t) => Some(t.to_string_lossy()),
         _ => None,
     }
 }
-fn obj<'a>(d: &'a Descriptor, k: &str) -> Option<&'a Descriptor> {
+pub(crate) fn obj<'a>(d: &'a Descriptor, k: &str) -> Option<&'a Descriptor> {
     match get(d, k)? {
         Value::Descriptor(o) | Value::GlobalObject(o) => Some(o),
         _ => None,
     }
 }
-fn enum_value(d: &Descriptor, k: &str) -> Option<String> {
+pub(crate) fn enum_value(d: &Descriptor, k: &str) -> Option<String> {
     match get(d, k)? {
         Value::Enumerated { value, .. } => Some(String::from_utf8_lossy(value.as_bytes()).to_string()),
         _ => None,
@@ -189,7 +208,7 @@ fn mask_mode(code: Option<String>) -> Option<MaskMode> {
 }
 
 /// Preset-level keys this mapper understands (anything else is reported as unmapped).
-const KNOWN: &[&str] = &[
+pub(crate) const KNOWN: &[&str] = &[
     "Nm  ",
     "Brsh",
     "useTipDynamics",
