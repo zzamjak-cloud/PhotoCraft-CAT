@@ -11,6 +11,9 @@ pub(crate) struct Runtime {
     /// The startup prompt and the self-update behind it (desktop).
     #[cfg(not(target_arch = "wasm32"))]
     updater: craft_update::updater::Updater,
+    /// Windows: 서명 키로 확인하는 포크 전용 업데이터 (`win_update`).
+    #[cfg(not(target_arch = "wasm32"))]
+    win: crate::win_update::WinUpdater,
 }
 
 impl Default for Runtime {
@@ -20,6 +23,8 @@ impl Default for Runtime {
             notified_version: None,
             #[cfg(not(target_arch = "wasm32"))]
             updater: craft_update::updater::Updater::new(&crate::UPDATE_APP, photocraft_engine::build_info::VERSION),
+            #[cfg(not(target_arch = "wasm32"))]
+            win: Default::default(),
         }
     }
 }
@@ -64,13 +69,24 @@ pub(crate) fn tick(app: &mut PhotocraftApp, ctx: &egui::Context) {
         app.updates_rt.notified_version = Some(release.version.clone());
         app.ui.updates_open = true;
         #[cfg(not(target_arch = "wasm32"))]
-        app.updates_rt.updater.offer(release_of(release));
+        if crate::win_update::active() {
+            app.updates_rt.win.offer(&release.version, &release.url);
+        } else {
+            app.updates_rt.updater.offer(release_of(release));
+        }
     }
     if app.session.updates.check.is_none() {
         return;
     }
     if !app.updates_rt.startup_checked {
         app.updates_rt.startup_checked = true;
+        #[cfg(not(target_arch = "wasm32"))]
+        if crate::win_update::active()
+            && let Some(why) = crate::win_update::take_failure()
+        {
+            app.ui.status = crate::i18n::fmt(tl!("The last update was not installed: {reason}"), &[("reason", &why)]);
+            app.ui.status_error = true;
+        }
         if app.session.prefs().general.automatically_check_updates && matches!(app.session.updates.status, Status::Idle) {
             let _ = app.run("help.checkForUpdates", serde_json::json!({}));
         }
@@ -86,6 +102,21 @@ pub(crate) fn show(_app: &mut PhotocraftApp, _ctx: &egui::Context) {}
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
     let mut download: Option<String> = None;
+    if app.updates_rt.win.prompt_open() {
+        let clean = !app.has_unsaved_work();
+        match app.updates_rt.win.show(ctx, clean) {
+            crate::win_update::Action::None => {}
+            crate::win_update::Action::OpenUrl(url) => download = Some(url),
+            crate::win_update::Action::Close => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+        }
+        if !app.updates_rt.win.prompt_open() {
+            app.ui.updates_open = false;
+        }
+        if let Some(url) = download {
+            crate::links::open(app, ctx, &url);
+        }
+        return;
+    }
     {
         let was_open = app.updates_rt.updater.prompt_open();
         app.updates_rt.updater.tick(ctx);

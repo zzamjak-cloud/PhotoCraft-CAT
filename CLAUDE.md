@@ -61,4 +61,5 @@ CAT_SNAPSHOT_DIR=/tmp/x cargo test -p photocraft-ui-egui --lib cat::tests::the_c
 - 릴리스: `git tag v0.19.1 && git push origin v0.19.1` → Actions `Release` 가 macOS(arm64)·Windows(x64) 빌드 후 릴리스에 에셋 첨부. 수동: `gh workflow run release.yml -f version=0.19.1`.
 - 로컬 패키징: `packaging/macos/package-cat.sh` (ad-hoc 서명 .app/.dmg/.tar.gz → `dist/release/`), Windows 는 `packaging/windows/package-cat.ps1 -Version X.Y.Z`.
 - 서명 없음: macOS 첫 실행은 우클릭 → 열기(또는 시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기", 안 되면 `xattr -dr com.apple.quarantine "/Applications/PhotoCraft CAT.app"`). Windows 는 SmartScreen "추가 정보 → 실행".
-- 자동 설치는 macOS 만 동작(번들 id `com.zzamjak.photocraft-cat` 이 craft-update 의 DMG 경로를 피해 tarball 로 실행 파일 교체). Windows 는 craft-update 가 Authenticode 서명을 요구해 "업데이트 후 재시작"이 실패하므로 알림의 "다운로드"로 zip 을 받아 같은 폴더에 덮어 푼다.
+- 자동 설치: macOS 는 craft-update(번들 id `com.zzamjak.photocraft-cat` 이 DMG 경로를 피해 tarball 로 실행 파일 교체). Windows 는 craft-update 가 Authenticode 서명을 요구하므로 포크 전용 `crates/ui-egui/src/win_update.rs` 를 쓴다(QuickFolder/Tauri 방식): 릴리스 job 이 포터블 zip 을 Ed25519 키로 서명해 `<zip>.sig` 를 올리고, 앱은 내장 `PUBLIC_KEY` 로 확인 후 도우미 PowerShell(`win_update_helper.ps1`)이 앱 종료 뒤 덮어 풀고 재실행. 실패 사유는 다음 실행 때 상태 표시줄에 뜬다.
+- 서명 키: 개인키 GitHub Secret `UPDATE_SIGNING_KEY`(Ed25519 PEM, 로컬 백업 `~/.config/photocraft-cat/update-signing-key.pem`). 시크릿이 없으면 Release 의 서명 단계가 실패한다. 키를 바꾸면 `PUBLIC_KEY` 도 바꾸고, 이전 버전 사용자는 수동 설치가 한 번 필요하다.
