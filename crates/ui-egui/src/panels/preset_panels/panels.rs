@@ -20,7 +20,8 @@ pub fn gradients_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
         .collect();
     let canvas = canvas_drop_rect(app);
     let mut st = std::mem::take(&mut app.ui.presets_ui);
-    let max_h = (ui.available_height() - 40.0).clamp(90.0, 260.0);
+    // 목록은 패널 높이를 따라 늘어난다 (browser 가 푸터 높이를 빼고 스크롤한다).
+    let max_h = (ui.available_height() - 40.0).max(90.0);
     let events =
         browser(ui, &mut st, "gradients", &groups, Place { canvas, max_h, new_tip: tl!("Create new gradient"), flush: false }, &mut |ui, r, gi, ii| {
             let stops = groups_src[gi].items[ii].resolve(fg, bg);
@@ -72,7 +73,7 @@ pub fn patterns_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
         app.session.presets.pattern_groups.iter().map(|g| g.items.iter().filter_map(|id| lib.iter().find(|p| &p.id == id).cloned()).collect()).collect();
     let canvas = canvas_drop_rect(app);
     let mut st = std::mem::take(&mut app.ui.presets_ui);
-    let max_h = (ui.available_height() - 40.0).clamp(90.0, 280.0);
+    let max_h = (ui.available_height() - 40.0).max(90.0);
     let ctx = ui.ctx().clone();
     let events = browser(
         ui,
@@ -138,7 +139,7 @@ pub fn styles_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
         &mut st,
         "styles",
         &groups,
-        Place { canvas, max_h: 300.0, new_tip: tl!("Create new style from the selected layer"), flush: false },
+        Place { canvas, max_h: f32::INFINITY, new_tip: tl!("Create new style from the selected layer"), flush: false },
         &mut |ui, r, gi, ii| {
             ui.painter().rect_filled(r, 2.0, t.field);
             ui.painter().image(texes[gi][ii].id(), r, Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)), Color32::WHITE);
@@ -237,7 +238,7 @@ pub fn shapes_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
         &mut st,
         "shapes",
         &groups,
-        Place { canvas, max_h: 300.0, new_tip: tl!("Create new shape from the current path"), flush: false },
+        Place { canvas, max_h: f32::INFINITY, new_tip: tl!("Create new shape from the current path"), flush: false },
         &mut |ui, r, gi, ii| {
             let tex = shape_texture(&ctx, &src[gi].items[ii]);
             ui.painter().image(tex.id(), r.shrink(2.0), Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)), t.text);
@@ -404,6 +405,9 @@ pub(super) fn new_tool_preset_params(app: &PhotocraftApp, tool: Tool) -> Value {
     json!({"name": tool.label(), "tool": tool_id(tool), "options": {"toolOptions": own}})
 }
 
+/// Tool Presets 푸터(체크박스·버튼 한 줄)에 남겨 두는 높이.
+const TOOL_PRESETS_FOOTER_H: f32 = 34.0;
+
 pub fn tool_presets_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     let only = app.ui.presets_ui.current_tool_only;
@@ -431,7 +435,9 @@ pub fn tool_presets_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
             }
         });
     }
-    egui::ScrollArea::vertical().id_salt("tool-presets").max_height(260.0).auto_shrink([false, true]).show(ui, |ui| {
+    // 목록은 패널 높이를 따라 늘어나고, 아래 푸터(Current Tool Only · + · 삭제)는 항상 보인다.
+    let list_h = (ui.available_height() - TOOL_PRESETS_FOOTER_H).max(72.0);
+    egui::ScrollArea::vertical().id_salt("tool-presets").max_height(list_h).min_scrolled_height(list_h.min(72.0)).auto_shrink([false, true]).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
         if items.is_empty() {
             empty(ui, if only { tl!("No presets for the current tool.") } else { tl!("No tool presets.") });
