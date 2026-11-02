@@ -67,6 +67,9 @@ fn invoke_early_commands(app: &mut PhotocraftApp, ctx: &egui::Context, id: &str,
     if id == "help.checkForUpdates" {
         return Some(crate::updates_ui::check(app, ctx, params.clone()));
     }
+    if let Some(target) = color_chip_target(id) {
+        return Some(Ok(json!({"dialog": crate::color_picker_ui::open(app, target)})));
+    }
     if id == "ui.symmetryTransform" {
         return Some(crate::symmetry_ui::begin(app).map(|_| Value::Null));
     }
@@ -837,4 +840,13 @@ fn select_layer_under_cursor(app: &mut PhotocraftApp, ctx: &egui::Context) -> Re
         app.run("layer.select", json!({"layer": layer, "mode": "replace"}))?;
     }
     Ok(picked)
+}
+
+/// 툴바 색상 칩 명령(`tools.setForegroundColor` / `tools.setBackgroundColor`)이 여는 Color Picker 대상.
+fn color_chip_target(id: &str) -> Option<&'static str> {
+    match id {
+        "tools.setForegroundColor" => Some("foreground"),
+        "tools.setBackgroundColor" => Some("background"),
+        _ => None,
+    }
 }

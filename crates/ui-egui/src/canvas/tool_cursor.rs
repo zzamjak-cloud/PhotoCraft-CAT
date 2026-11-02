@@ -202,6 +202,12 @@ fn scaled_wayland(ctx: &egui::Context) -> bool {
 /// macOS, so there the bitmap scales only with the UI zoom (the monitor's density would enlarge it
 /// a second time on Retina displays); Windows, X11 and Wayland take physical pixels. (The macOS
 /// sizing is from @jerrykimo's #968.)
+/// macOS 의 OS 커서 이미지는 1x 로만 올라가므로(winit `cursor_from_image` 가 NSImage 크기를 픽셀
+/// 수로 잡는다) 화면 배율이 1보다 크면 흐리거나 계단져 보인다.
+fn blurry_os_cursor(ctx: &egui::Context) -> bool {
+    cfg!(target_os = "macos") && ctx.pixels_per_point() > native_scale(ctx) + 0.01
+}
+
 pub(crate) fn native_scale(ctx: &egui::Context) -> f32 {
     if cfg!(target_os = "macos") { ctx.zoom_factor() } else { ctx.pixels_per_point() }
 }
@@ -287,7 +293,8 @@ fn zoom_with(ctx: &egui::Context, out: bool, bitmap: bool) -> CursorIcon {
 fn show(painter: &Painter, at: Pos2, shape: Shape) -> CursorIcon {
     let ctx = painter.ctx();
     // Where cursor images can't be uploaded (immediate viewports, the web), paint the shape.
-    if native(ctx) {
+    // 레티나 macOS 도 직접 그린다: winit 이 커서 비트맵을 1x(점 = 픽셀)로 만들어 OS 가 확대하므로 계단이 보인다.
+    if native(ctx) && !blurry_os_cursor(ctx) {
         let scale = native_scale(ctx);
         if let Some(image) = cached_image(ctx, &shape, scale) {
             ctx.set_cursor_image(Some(image));

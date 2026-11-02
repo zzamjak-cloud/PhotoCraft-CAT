@@ -1048,3 +1048,21 @@ fn alt_choosing_an_adjustment_from_the_menu_reopens_the_last_settings() {
     choose(&mut h, Modifiers::ALT);
     assert_eq!(crate::palette::recent_ids(&h.ctx).first().map(String::as_str), Some("image.adjustments.levels"), "Edit › Search's most recent");
 }
+
+/// 툴바 색상 칩 명령은 Keyboard Shortcuts 목록의 Tools 에 있고, 지정한 키(Q)로 Color Picker 를 연다.
+#[test]
+fn set_foreground_color_takes_a_user_key() {
+    let mut h = harness();
+    let items = crate::prefs_ui::shortcut_items(h.state());
+    for id in ["tools.setForegroundColor", "tools.setBackgroundColor"] {
+        assert!(items.iter().any(|i| i.0 == id && i.2 == ["Tools"] && i.3.is_none()), "{id}");
+    }
+    put_focus(&mut h, Place::Canvas);
+    h.state_mut().session.edit_prefs(|p| {
+        p.shortcuts.insert("tools.setForegroundColor".into(), "Q".into());
+    });
+    press(&mut h, "Q");
+    assert!(matches!(take_log(&h.ctx).as_slice(), [(id, Outcome::Ran)] if id == "tools.setForegroundColor"));
+    let picker = h.state().ui.dialogs.iter().any(|d| d.fields.get("__colorPicker").and_then(|v| v.as_str()) == Some("foreground"));
+    assert!(picker);
+}

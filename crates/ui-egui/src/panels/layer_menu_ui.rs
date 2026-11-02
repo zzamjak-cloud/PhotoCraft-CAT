@@ -73,7 +73,12 @@ pub fn entries(l: &Layer, multi: bool, has_selection: bool) -> Vec<Entry> {
         v.push(Some(("Rasterize Layers", "layer.rasterize.layer")));
     } else {
         match &l.content {
-            LayerContent::Text(_) => v.push(Some(("Rasterize Type", "layer.rasterize.type"))),
+            LayerContent::Text(_) => {
+                // Photoshop 처럼 Rasterize Type 아래에 글자 윤곽을 패스·셰이프로 바꾸는 항목.
+                v.push(Some(("Rasterize Type", "layer.rasterize.type")));
+                v.push(Some(("Create Work Path", "type.createWorkPath")));
+                v.push(Some(("Convert to Shape", "type.convertToShape")));
+            }
             LayerContent::Shape(_) => v.push(Some(("Rasterize Layer", "layer.rasterize.shape"))),
             LayerContent::Smart(_) => {
                 v.push(Some((tl!("Edit Contents"), "layer.smartObjects.editContents")));

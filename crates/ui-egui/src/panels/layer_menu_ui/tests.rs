@@ -571,3 +571,20 @@ fn every_entry_is_a_known_command() {
         assert!(crate::menu_catalog::CATALOG.iter().any(|m| m.3 == id) || photocraft_engine::commands::find(id).is_some(), "{id}");
     }
 }
+
+/// 타입 레이어 우클릭 메뉴: Rasterize Type 아래 Create Work Path·Convert to Shape, 실행하면 셰이프 레이어가 된다.
+#[test]
+fn type_layer_menu_converts_to_shape() {
+    let mut app = crate::PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
+    app.run("file.new", serde_json::json!({"width": 200, "height": 100})).unwrap();
+    app.run("type.create", serde_json::json!({"x": 20, "y": 60, "text": "Hi", "size": 36})).unwrap();
+    let st = app.session.active().unwrap();
+    let l = st.doc.layer(st.active_layer.unwrap()).unwrap();
+    let ids: Vec<&str> = entries(l, false, false).into_iter().flatten().map(|e| e.1).collect();
+    let at = ids.iter().position(|id| *id == "layer.rasterize.type").unwrap();
+    assert_eq!(ids[at + 1..at + 3], ["type.createWorkPath", "type.convertToShape"]);
+    assert!(!entries(l, true, false).into_iter().flatten().any(|e| e.1 == "type.convertToShape"));
+    crate::menus::invoke(&mut app, &egui::Context::default(), "type.convertToShape", serde_json::json!({})).unwrap();
+    let st = app.session.active().unwrap();
+    assert!(matches!(st.doc.layer(st.active_layer.unwrap()).unwrap().content, LayerContent::Shape(_)));
+}

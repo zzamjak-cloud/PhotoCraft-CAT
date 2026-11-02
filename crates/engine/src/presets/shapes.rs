@@ -428,7 +428,7 @@ fn reset(s: &mut Session, p: &Value) -> Result<Value> {
 }
 
 /// Photoshop 사용자 정의 셰이프(`.csh`) 가져오기: 파일 폴더마다 그룹 하나
-/// (`파일명` 또는 `파일명 / 폴더`), 셰이프는 100 상자에 맞춰 넣는다.
+/// (폴더 경로, 폴더가 없으면 `파일명`), 셰이프는 100 상자에 맞춰 넣는다.
 fn import_csh(s: &mut Session, p: &Value) -> Result<Value> {
     const CMD: &str = "shape.presets.importCsh";
     let (bytes, stem) = crate::preset_import_cmds::file_bytes(p, CMD, ".csh file")?;
@@ -462,7 +462,8 @@ fn import_csh(s: &mut Session, p: &Value) -> Result<Value> {
     let mut groups = Vec::new();
     let mut count = 0;
     for (folder, items) in by_folder {
-        let name = if folder.is_empty() { base.clone() } else { format!("{base} / {}", folder.join(" / ")) };
+        // 폴더가 있으면 폴더 경로만 그룹 이름으로 쓴다 (파일명 접두사는 목록만 길게 만든다).
+        let name = if folder.is_empty() { base.clone() } else { folder.join(" / ") };
         let name = super::gradients::unique_group(&s.presets.shapes, &name);
         s.presets.shapes.push(Group::new(&name, Vec::new()));
         let gi = s.presets.shapes.len() - 1;

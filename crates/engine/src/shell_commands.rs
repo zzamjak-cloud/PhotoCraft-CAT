@@ -9,6 +9,9 @@
 pub const SHELL_COMMANDS: &[(&str, &str, &[&str], Option<&str>)] = &[
     ("layer.selectUnderCursor", "Select Layer Under Cursor", &[], None),
     ("ui.symmetryTransform", "Transform Symmetry", &[], None),
+    // 툴바 색상 칩 클릭과 같다: Color Picker 를 연다. 기본 단축키는 없고 Keyboard Shortcuts 에서 지정한다.
+    ("tools.setForegroundColor", "Set Foreground Color", &[], None),
+    ("tools.setBackgroundColor", "Set Background Color", &[], None),
     // Right-click the options bar's tool icon (#2825); `tool.resetAll` asks first.
     ("tool.reset", "Reset Tool", &[], None),
     ("tool.resetAll", "Reset All Tools", &[], None),

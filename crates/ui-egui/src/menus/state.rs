@@ -68,6 +68,7 @@ pub fn is_enabled(app: &PhotocraftApp, id: &str) -> bool {
         i if i.starts_with("window.theme.") => true,
         // Interface brightness works with or without a document, as in Photoshop.
         "view.darkenInterface" | "view.lightenInterface" => true,
+        "tools.setForegroundColor" | "tools.setBackgroundColor" => true,
         "file.save" | "file.saveAs" | "file.export.exportAs" | "file.export.quickExportAsPng" => {
             app.session.active().is_some() && app.services.export.is_some()
         }
