@@ -9,14 +9,20 @@
 #![recursion_limit = "256"]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
-/// PhotoCraft as craft-update knows it, with its 128 px icon and accent colour: the update
-/// prompt shows both, and an AppImage's menu entry gets the icon.
+/// craft-update 이 아는 PhotoCraft CAT 포크. 업데이트 확인·다운로드는 `repo` 저장소의 릴리스로만
+/// 한정되므로 공식 PhotoCraft(storytold/photocraft) 릴리스를 받아오지 않는다.
+/// `id` 는 릴리스 에셋 접두사(`photocraft-cat-<버전>-<os>-<arch>.<ext>`)이자 macOS 업데이트
+/// tarball 안의 바이너리 이름이며, `name` 은 업데이터 캐시 폴더 이름이다.
 #[cfg(not(target_arch = "wasm32"))]
 pub const UPDATE_APP: craft_update::app::App = craft_update::app::App {
     icon_png: Some(include_bytes!("../../../assets/app-icon/hicolor/128x128/apps/ai.storyteller.photocraft.png")),
     accent: Some([0x2f, 0x7b, 0xf5]),
-    ..craft_update::suite::PHOTOCRAFT
+    developer: "zzamjak-cloud",
+    ..craft_update::app::App::new("photocraft-cat", "PhotoCraft CAT", "Image editing", "zzamjak-cloud/PhotoCraft-CAT")
 };
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod update_app_tests;
 
 /// Translate a string literal into the current UI language: `tl!("Image Size…")`.
 macro_rules! tl {

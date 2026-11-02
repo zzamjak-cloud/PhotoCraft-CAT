@@ -53,3 +53,12 @@ CAT_SNAPSHOT_DIR=/tmp/x cargo test -p photocraft-ui-egui --lib cat::tests::the_c
 - 테스트 폰트에 한글이 없다: 한국어 모달을 그리는 하네스는 `ctx.set_missing_glyph_policy(Tofu)`.
 - 업스트림 도크 레이아웃 불변식 테스트(dock/panel_docking)는 `panels.cat = false` 로 CAT 그룹을 제외하고 검사한다.
 - GUI PhotoCraft 프로세스를 띄우거나 종료하지 않는다 (사용자가 실행 중일 수 있음).
+
+## 릴리스 / 자동 업데이트
+
+- 업데이터(`crates/ui-egui/src/lib.rs` `UPDATE_APP`)는 `zzamjak-cloud/PhotoCraft-CAT` 릴리스만 본다. 앱 id `photocraft-cat`, 이름 `PhotoCraft CAT`. 검증: `cargo test -p photocraft-ui-egui --lib update_app_tests`.
+- 버전은 태그가 결정한다(`PHOTOCRAFT_OVERRIDE_VERSION`). 태그는 반드시 `vX.Y.Z` (꼬리표 금지: craft-update 가 사전 릴리스는 제안하지 않음), 이전 태그보다 커야 한다. Cargo.toml 버전은 0.19.0 그대로 둔다.
+- 릴리스: `git tag v0.19.1 && git push origin v0.19.1` → Actions `Release` 가 macOS(arm64)·Windows(x64) 빌드 후 릴리스에 에셋 첨부. 수동: `gh workflow run release.yml -f version=0.19.1`.
+- 로컬 패키징: `packaging/macos/package-cat.sh` (ad-hoc 서명 .app/.dmg/.tar.gz → `dist/release/`), Windows 는 `packaging/windows/package-cat.ps1 -Version X.Y.Z`.
+- 서명 없음: macOS 첫 실행은 우클릭 → 열기(또는 시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기", 안 되면 `xattr -dr com.apple.quarantine "/Applications/PhotoCraft CAT.app"`). Windows 는 SmartScreen "추가 정보 → 실행".
+- 자동 설치는 macOS 만 동작(번들 id `com.zzamjak.photocraft-cat` 이 craft-update 의 DMG 경로를 피해 tarball 로 실행 파일 교체). Windows 는 craft-update 가 Authenticode 서명을 요구해 "업데이트 후 재시작"이 실패하므로 알림의 "다운로드"로 zip 을 받아 같은 폴더에 덮어 푼다.
