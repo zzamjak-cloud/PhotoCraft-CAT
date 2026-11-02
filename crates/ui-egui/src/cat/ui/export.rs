@@ -6,10 +6,9 @@ use super::{DropdownEvent, DropdownItem, DropdownSpec, checkbox, dropdown, icon_
 use crate::PhotocraftApp;
 use crate::cat::features::export_selected_layers::LayerFileType;
 use crate::cat::features::export_speed_save::{NEEDS_FOLDER, SpeedFormat};
-use crate::cat::features::image_trace::TraceSettings;
 use crate::cat::features::{
-    clean_psd, export_market_screenshot, export_selected_and_link, export_selected_layers, export_speed_save, folder_preset, image_trace,
-    outline_stroke, patch_maker, sorting_layer, split_to_layers, svg_to_shape_layer,
+    clean_psd, export_market_screenshot, export_selected_and_link, export_selected_layers, export_speed_save, folder_preset, outline_stroke, patch_maker,
+    sorting_layer, split_to_layers, svg_to_shape_layer,
 };
 use crate::cat::lib::CatResult;
 use crate::cat::lib::core::{alert, confirm, notify, pick_files, pick_folder, prompt, run_safe};
@@ -70,7 +69,7 @@ pub fn show(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                 });
             }
             if icon_button(ui, "imagetracing", "Image trace").clicked() {
-                image_trace_prompts(app);
+                super::vector::open_trace_window(app);
             }
             if icon_button(ui, "export_market_screenshop", "Market screenshot").clicked() {
                 with_doc_or_picked_folder(app, "Market screenshot", |app, folder| {
@@ -205,18 +204,4 @@ fn speed_save(app: &mut PhotocraftApp, label: &'static str, format: SpeedFormat)
         }),
         Err(e) => alert(app, format!("{label} 실패:\n{e}")),
     }
-}
-
-/// Image trace: 색상 허용치 → 경로 부드러움 입력 후 실행
-fn image_trace_prompts(app: &mut PhotocraftApp) {
-    let d = TraceSettings::default();
-    prompt(app, "Image Trace — Color Tolerance (0-100)", d.color_tolerance.to_string(), move |app, c| {
-        prompt(app, "Image Trace — Path Smoothness (0-5)", d.path_tolerance.to_string(), move |app, p| {
-            let settings = TraceSettings {
-                color_tolerance: c.trim().parse().unwrap_or(d.color_tolerance).clamp(0.0, 100.0),
-                path_tolerance: p.trim().parse().unwrap_or(d.path_tolerance).clamp(0.0, 5.0),
-            };
-            run_safe(app, "Image trace", |app| image_trace::run(app, settings));
-        });
-    });
 }

@@ -17,6 +17,9 @@ PhotoCraft(Rust/egui) 개인 포크. CAT 플러그인(Photoshop UXP)을 네이�
 | `features/` | 기능 로직 (CAT 기능 파일 1:1). UI 없음, `lib` 만 사용. 각 파일의 `run(...)` 이 버튼 진입점 |
 | `ui/` | 공용 위젯(`mod.rs`) + 섹션별 파일(`export, import, rename, guide, extra, nine_slice`), 아이콘(`icons/`, `include_bytes!`) |
 | `tests.rs` | 인프로세스 테스트 + 헬퍼(`test_app`, `new_doc`, `rect_layer`) |
+| `ui/vector.rs`, `features/vector_ops.rs` | **VECTOR** 섹션: Pathfinder 9종·Simplify·Smooth·Offset path·Image Trace 창 |
+
+벡터 엔진: `crates/vc-geom`·`vc-trace`·`vc-pathops` (패키지 `vectorcraft-*`, storytold/vectorcraft 에서 벤더링, `ATTRIBUTION.md`). 셰이프 ⇄ `PathData` 변환은 `lib/shape.rs` (`shape_path_region` = op 를 불리언으로 푼 nonzero 영역, `path_data_to_shape_path`, `map_subpaths`). Image Trace 기본 엔진은 `vectorcraft_trace`(`image_trace::run_vector`), CAT 원본은 Classic(`run`). Outline stroke/Expand path 는 `vectorcraft_pathops::{outline_stroke, offset_path}`.
 
 도크 연결: `dock.rs`(`Group::Cat`), `state.rs`(`Panels.cat`, 기본 true), `panels/dock.rs`(레일·본문), `panels/panel_docking.rs`(`catTools`/`nineSlice`), `menu_catalog.rs`(`window.panel.cat`), `menus/invoke.rs`.
 

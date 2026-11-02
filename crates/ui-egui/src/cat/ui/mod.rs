@@ -9,6 +9,7 @@ pub mod icons;
 pub mod import;
 pub mod nine_slice;
 pub mod rename;
+pub mod vector;
 
 use egui::{Id, RichText, vec2};
 
@@ -30,6 +31,7 @@ pub fn tools_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     rename::show(app, ui);
     guide::show(app, ui);
     extra::show(app, ui);
+    vector::show(app, ui);
     progress_bar(app, ui);
     show_modals(app, ui.ctx());
 }

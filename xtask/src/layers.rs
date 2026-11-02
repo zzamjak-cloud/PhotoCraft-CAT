@@ -66,6 +66,10 @@ pub const TABLE: &[(&str, Class)] = &[
     ("ui-egui", Class::Layer(6)),
     ("automation", Class::Layer(6)),
     ("platform", Class::Layer(6)),
+    // CAT VECTOR 기능용으로 벤더링한 VectorCraft 벡터 엔진 (geom → trace/pathops)
+    ("vectorcraft-geom", Class::Layer(1)),
+    ("vectorcraft-trace", Class::Layer(2)),
+    ("vectorcraft-pathops", Class::Layer(2)),
     ("testkit", Class::Testkit),
     // L7 apps and tooling
     ("photocraft", Class::Exempt),

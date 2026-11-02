@@ -113,6 +113,8 @@ pub struct CatState {
     pub modals: VecDeque<Modal>,
     /// 모달을 그린 마지막 패스 (두 패널이 같은 프레임에 중복으로 그리지 않도록)
     pub(crate) modal_pass: Option<u64>,
+    /// VECTOR 섹션 입력값·Image Trace 창 (저장하지 않음)
+    pub vector: ui::vector::VectorState,
 }
 
 impl CatState {

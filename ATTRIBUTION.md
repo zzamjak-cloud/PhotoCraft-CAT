@@ -148,3 +148,9 @@ are adapted from Skyfuller1303’s MIT OR Apache-2.0 implementation in
 `897f20072762fdf0eb688adcdb8d8cda7b38ce66`. Don Omondi’s embedded AI/PDF/EPS
 extension and current-main integration build on that source. Clipboard and unrelated
 Shape Tools changes from that branch are not included.
+
+## Vendored VectorCraft crates (CAT VECTOR)
+
+| Path | Title | Author | Source | License |
+|---|---|---|---|---|
+| `crates/vc-geom`, `crates/vc-trace`, `crates/vc-pathops` (packages `vectorcraft-geom`, `vectorcraft-trace`, `vectorcraft-pathops`) | VectorCraft geometry, Image Trace and path operations (Pathfinder, offset, outline stroke, simplify) | VectorCraft contributors | <https://github.com/storytold/vectorcraft> commit `639c9d6ce989dd638ba3488cc26e36d907022bcb` (`crates/geom`, `crates/trace`, `crates/pathops`); testkit-based property tests removed | MIT OR Apache-2.0, license files in each crate |

@@ -26,3 +26,4 @@ pub mod size_presets;
 pub mod sorting_layer;
 pub mod split_to_layers;
 pub mod svg_to_shape_layer;
+pub mod vector_ops;

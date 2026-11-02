@@ -37,6 +37,10 @@ photocraft-ui-egui = { path = "crates/ui-egui" }
 photocraft-testkit = { path = "crates/testkit" }
 photocraft-tablet = { path = "crates/tablet" }
 photocraft-ipp = { path = "crates/ipp" }
+# VectorCraft 벡터 엔진 (storytold/vectorcraft 에서 벤더링, CAT VECTOR 기능용)
+vectorcraft-geom = { path = "crates/vc-geom" }
+vectorcraft-trace = { path = "crates/vc-trace" }
+vectorcraft-pathops = { path = "crates/vc-pathops" }
 
 # external
 craft-print = { git = "https://github.com/storytold/craft-libs", rev = "c5a1cbfb5f9049f9270955caffb5bee5997aebf7" }
@@ -45,6 +49,8 @@ craft-jpeg = { git = "https://github.com/storytold/craft-libs", rev = "c5a1cbfb5
 # craft-update: app-specific pretend versions apply to startup and manual checks.
 craft-update = { git = "https://github.com/storytold/craft-libs", version = "=0.1.0", rev = "c5a1cbfb5f9049f9270955caffb5bee5997aebf7", features = ["egui"] }
 thiserror = "2"
+kurbo = { version = "0.13", features = ["serde"] }
+linesweeper = "0.5"
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 clap = { version = "4", features = ["derive", "env"] }

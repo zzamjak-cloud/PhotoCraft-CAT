@@ -381,6 +381,37 @@ fn the_cat_panel_is_docked_by_default_and_its_buttons_run_features() {
     snapshot(&mut h, "cat-tools-panel-after.png");
 }
 
+#[test]
+fn the_cat_vector_section_and_trace_window() {
+    use egui_kittest::kittest::Queryable;
+    let dir = tempfile::tempdir().unwrap();
+    let mut h = harness(dir.path());
+    // VECTOR 섹션만 펼친다
+    for (k, v) in h.state_mut().cat.settings.sections.iter_mut() {
+        *v = k == "VECTOR";
+    }
+    h.state_mut().cat.settings.sections.insert("VECTOR".into(), true);
+    h.run_steps(4);
+    snapshot(&mut h, "cat-vector-section.png");
+    // 셰이프가 선택되지 않으면 Pathfinder 는 실패 알림
+    h.get_by_label("Unite").click();
+    h.run_steps(4);
+    assert!(h.state().cat.modals.front().is_some_and(|m| m.message.contains("Unite 실패")));
+    h.get_by_label("OK").click();
+    h.run_steps(4);
+    // Image trace 버튼 → 설정 창
+    h.get_by_label("Image trace").click();
+    h.run_steps(6);
+    assert!(h.state().cat.vector.trace.open);
+    snapshot(&mut h, "cat-image-trace-window.png");
+    h.get_by_label("Trace").click();
+    h.run_steps(4);
+    // 흰 배경(흑백 모드, Ignore White 꺼짐) → 흰 셰이프 하나
+    assert!(h.state().cat.modals.is_empty());
+    assert_eq!(layer::all_layers(h.state()).unwrap().len(), 2);
+    assert!(h.state().ui.status.contains("1개"), "{}", h.state().ui.status);
+}
+
 /// `CAT_SNAPSHOT_DIR` 가 있으면 하네스 화면을 PNG 로 저장 (시각 확인용)
 fn snapshot(h: &mut egui_kittest::Harness<'static, PhotocraftApp>, name: &str) {
     if let Ok(out) = std::env::var("CAT_SNAPSHOT_DIR") {

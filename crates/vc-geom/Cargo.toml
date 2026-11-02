@@ -1,0 +1,18 @@
+[package]
+name = "vectorcraft-geom"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "VectorCraft geom (vendored from storytold/vectorcraft 639c9d6, Apache-2.0)"
+
+[lints]
+workspace = true
+
+[dependencies]
+kurbo = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+serde_json = { workspace = true }

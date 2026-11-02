@@ -353,3 +353,132 @@ pub fn parse_svg_shapes(bytes: &[u8]) -> CatResult<SvgShapes> {
     collect_svg_shapes(&r.document.layers, &mut shapes);
     Ok(SvgShapes { width: f64::from(r.document.size.width), height: f64::from(r.document.size.height), shapes })
 }
+
+// ==================== VectorCraft PathData 변환 (vc-geom / vc-pathops) ====================
+
+/// 셰이프 서브패스 → VectorCraft 서브패스 (backward = h_in, forward = h_out)
+pub fn subpath_to_vc(sp: &Subpath) -> vectorcraft_geom::SubPath {
+    let pt = |q: [f64; 2]| vectorcraft_geom::Point::new(q[0], q[1]);
+    let anchors = sp
+        .knots
+        .iter()
+        .map(|k| vectorcraft_geom::Anchor {
+            p: pt(k.anchor),
+            h_in: pt(k.backward),
+            h_out: pt(k.forward),
+            kind: if k.smooth { vectorcraft_geom::AnchorKind::Smooth } else { vectorcraft_geom::AnchorKind::Corner },
+        })
+        .collect();
+    vectorcraft_geom::SubPath::new(anchors, sp.closed)
+}
+
+/// VectorCraft 서브패스 → 셰이프 서브패스
+pub fn subpath_from_vc(sp: &vectorcraft_geom::SubPath, op: PathOp) -> Subpath {
+    let pt = |q: vectorcraft_geom::Point| [q.x, q.y];
+    Subpath {
+        closed: sp.closed,
+        knots: sp
+            .anchors
+            .iter()
+            .map(|a| Knot { anchor: pt(a.p), backward: pt(a.h_in), forward: pt(a.h_out), smooth: a.kind == vectorcraft_geom::AnchorKind::Smooth })
+            .collect(),
+        op,
+    }
+}
+
+/// 셰이프 패스의 서브패스를 그대로 PathData 로 (op·채우기 규칙은 보지 않는다: 스트로크 아웃라인·편집용)
+pub fn shape_path_to_path_data(path: &ShapePath) -> vectorcraft_geom::PathData {
+    vectorcraft_geom::PathData::new(path.subpaths.iter().filter(|s| !s.knots.is_empty()).map(subpath_to_vc).collect())
+}
+
+/// PathData → 셰이프 패스 하나의 컴포넌트 (첫 서브패스 Combine, 나머지 Join: 역방향 루프가 구멍이 된다)
+pub fn path_data_to_shape_path(path: &vectorcraft_geom::PathData, rule: vectorcraft_geom::FillRule) -> ShapePath {
+    ShapePath {
+        subpaths: path
+            .subpaths
+            .iter()
+            .filter(|s| !s.anchors.is_empty())
+            .enumerate()
+            .map(|(i, s)| subpath_from_vc(s, if i == 0 { PathOp::Combine } else { PathOp::Join }))
+            .collect(),
+        even_odd: rule == vectorcraft_geom::FillRule::EvenOdd,
+    }
+}
+
+/// 셰이프 패스가 칠하는 영역 (컴포넌트별 op 를 불리언으로 풀어 nonzero 단일 PathData 로).
+/// 컴포넌트 = op 가 Join 이 아닌 서브패스 + 뒤따르는 Join 서브패스들. 열린 서브패스는 닫아서 본다.
+pub fn shape_path_region(path: &ShapePath) -> vectorcraft_geom::PathData {
+    use vectorcraft_geom::{FillRule, PathData};
+    use vectorcraft_pathops::{BoolOp, boolean, normalize};
+    let rule = if path.even_odd { FillRule::EvenOdd } else { FillRule::NonZero };
+    let mut components: Vec<(PathOp, PathData)> = Vec::new();
+    for sp in path.subpaths.iter().filter(|s| s.knots.len() > 1) {
+        let mut vc = subpath_to_vc(sp);
+        vc.closed = true;
+        match components.last_mut() {
+            Some((_, d)) if sp.op == PathOp::Join => d.subpaths.push(vc),
+            _ => components.push((if sp.op == PathOp::Join { PathOp::Combine } else { sp.op }, PathData::single(vc))),
+        }
+    }
+    let mut acc: Option<PathData> = None;
+    for (op, comp) in components {
+        let comp = normalize(&comp, rule);
+        acc = Some(match acc {
+            // 첫 컴포넌트는 op 와 무관하게 시작 영역 (빈 영역에서 빼기·교차는 빈 결과라 Photoshop 도 같은 결과)
+            None => {
+                if matches!(op, PathOp::Subtract | PathOp::Intersect) {
+                    PathData::default()
+                } else {
+                    comp
+                }
+            }
+            Some(a) => {
+                let bop = match op {
+                    PathOp::Combine | PathOp::Join => BoolOp::Union,
+                    PathOp::Subtract => BoolOp::Difference,
+                    PathOp::Intersect => BoolOp::Intersect,
+                    PathOp::Exclude => BoolOp::Xor,
+                };
+                boolean(&a, FillRule::NonZero, &comp, FillRule::NonZero, bop)
+            }
+        });
+    }
+    acc.unwrap_or_default()
+}
+
+/// 셰이프 레이어(또는 벡터 마스크)가 칠하는 영역 (`shape_path_region`)
+pub fn get_shape_region(app: &PhotocraftApp, layer: LayerId) -> CatResult<vectorcraft_geom::PathData> {
+    Ok(shape_path_region(&get_shape_path(app, layer)?))
+}
+
+/// PathData(nonzero)로 셰이프 레이어 생성 → 레이어 ID
+pub fn create_shape_from_path_data(app: &mut PhotocraftApp, path: &vectorcraft_geom::PathData, options: &ShapeOptions) -> CatResult<LayerId> {
+    create_shape_from_path(app, &path_data_to_shape_path(path, vectorcraft_geom::FillRule::NonZero), options)
+}
+
+/// 셰이프 레이어의 패스 교체 (채우기·스트로크 유지)
+pub fn set_shape_path(app: &mut PhotocraftApp, layer: LayerId, path: &ShapePath) -> CatResult<()> {
+    if path.subpaths.iter().all(|s| s.knots.is_empty()) {
+        return Err("패스가 비어 있습니다.".into());
+    }
+    exec(app, "shape.edit", json!({"layer": layer.0, "path": path.to_json()})).map(|_| ())
+}
+
+/// 서브패스마다 `f` 를 적용 (op·채우기 규칙 유지; 결과가 빈 서브패스는 원본 유지)
+pub fn map_subpaths(path: &ShapePath, f: impl Fn(&vectorcraft_geom::PathData) -> vectorcraft_geom::PathData) -> ShapePath {
+    let subpaths = path
+        .subpaths
+        .iter()
+        .map(|sp| {
+            if sp.knots.len() < 2 {
+                return sp.clone();
+            }
+            let out = f(&vectorcraft_geom::PathData::single(subpath_to_vc(sp)));
+            match out.subpaths.first() {
+                Some(first) if out.subpaths.len() == 1 && !first.anchors.is_empty() => subpath_from_vc(first, sp.op),
+                _ => sp.clone(),
+            }
+        })
+        .collect();
+    ShapePath { subpaths, even_odd: path.even_odd }
+}

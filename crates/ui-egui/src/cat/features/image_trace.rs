@@ -1,5 +1,9 @@
 //! Image trace (CAT imageTrace.js 대응): 픽셀 → 색상별 셰이프 레이어.
 //!
+//! 기본 엔진은 VectorCraft Image Trace(`vectorcraft_trace`, `run_vector`): 모드(흑백/회색조/컬러/로고)·팔레트·
+//! 임계값·잡티·경로 정밀도·모서리·Method·Fills/Strokes 를 지원한다. 아래 CAT 원본 알고리즘은 "Classic"(`run`)으로 남긴다.
+//!
+//! Classic:
 //! 공유 경계 아크 방식 (원본 알고리즘 그대로):
 //! 1) 모든 비투명 픽셀을 색상 인덱스에 배정 → 작은 영역은 인접 색으로 병합
 //! 2) 픽셀 코너 격자에서 색상 경계 에지 그래프 구축 (차수≠2 정점 = 정션)
@@ -17,9 +21,12 @@ use crate::PhotocraftApp;
 use crate::cat::lib::CatResult;
 use crate::cat::lib::core::with_history;
 use crate::cat::lib::doc::require_doc;
-use crate::cat::lib::layer::{active_layer, group_selected_layers, select_layers};
+use crate::cat::lib::layer::{LayerInfo, active_layer, group_selected_layers, select_layers};
 use crate::cat::lib::pixels::get_layer_pixels;
-use crate::cat::lib::shape::{PathOp, ShapeOptions, ShapePath, Subpath, create_shape_from_path};
+use crate::cat::lib::shape::{PathOp, ShapeOptions, ShapePath, StrokeSettings, Subpath, create_shape_from_path, path_data_to_shape_path};
+use vectorcraft_geom::FillRule;
+pub use vectorcraft_trace::{Method, Mode, Palette, TraceParams};
+use vectorcraft_trace::{Raster, TraceResult, trace_within};
 
 /// 트레이스 설정 (UI 가 입력받는다)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -62,8 +69,16 @@ impl Pal {
     }
 }
 
-/// 활성 레이어 트레이스 → 생성된 셰이프 레이어 ID (2개 이상이면 `<이름>_trace` 그룹으로 묶는다)
-pub fn run(app: &mut PhotocraftApp, settings: TraceSettings) -> CatResult<Vec<LayerId>> {
+/// 활성 레이어의 캔버스 안 픽셀 (RGBA, 너비, 높이, 문서 원점)
+struct LayerRaster {
+    layer: LayerInfo,
+    rgba: Vec<u8>,
+    width: usize,
+    height: usize,
+    origin: [f64; 2],
+}
+
+fn active_layer_raster(app: &PhotocraftApp) -> CatResult<LayerRaster> {
     let doc = require_doc(app)?;
     let layer = active_layer(app).ok_or("선택된 레이어가 없습니다.")?;
     let (dw, dh) = (doc.width as i32, doc.height as i32);
@@ -83,20 +98,87 @@ pub fn run(app: &mut PhotocraftApp, settings: TraceSettings) -> CatResult<Vec<La
             dst.copy_from_slice(src);
         }
     }
-    let contours = trace_rgba(raw, w, h, settings);
-    let origin = [f64::from(ox), f64::from(oy)];
+    Ok(LayerRaster { layer, rgba: raw, width: w, height: h, origin: [f64::from(ox), f64::from(oy)] })
+}
+
+/// 셰이프 레이어들을 만들고 2개 이상이면 `<이름>_trace` 그룹으로 묶는다 (Undo 1단계)
+fn create_trace_layers(app: &mut PhotocraftApp, source_name: &str, items: Vec<(ShapePath, ShapeOptions)>) -> CatResult<Vec<LayerId>> {
+    if items.is_empty() {
+        return Err("트레이스 결과가 없습니다.".into());
+    }
     with_history(app, |app| {
         let mut ids = Vec::new();
-        for (color, path) in contours {
-            let path = offset_path(path, origin);
-            ids.push(create_shape_from_path(app, &path, &ShapeOptions { fill: Some(color), ..Default::default() })?);
+        for (path, options) in items {
+            ids.push(create_shape_from_path(app, &path, &options)?);
         }
         if ids.len() > 1 {
             select_layers(app, &ids)?;
-            group_selected_layers(app, &format!("{}_trace", layer.name))?;
+            group_selected_layers(app, &format!("{source_name}_trace"))?;
         }
         Ok(ids)
     })
+}
+
+/// Classic(CAT 원본 알고리즘) 트레이스 → 생성된 셰이프 레이어 ID (2개 이상이면 `<이름>_trace` 그룹으로 묶는다)
+pub fn run(app: &mut PhotocraftApp, settings: TraceSettings) -> CatResult<Vec<LayerId>> {
+    let r = active_layer_raster(app)?;
+    let contours = trace_rgba(r.rgba, r.width, r.height, settings);
+    let items = contours.into_iter().map(|(color, path)| (offset_path(path, r.origin), ShapeOptions { fill: Some(color), ..Default::default() })).collect();
+    create_trace_layers(app, &r.layer.name, items)
+}
+
+/// 트레이스 결과 앵커 상한 (사진을 높은 정밀도로 트레이스하면 수백만 개가 될 수 있다)
+const MAX_TRACE_ANCHORS: usize = 400_000;
+
+/// VectorCraft Image Trace → 색(·스트로크 폭)별 셰이프 레이어 ID (아래→위). 2개 이상이면 `<이름>_trace` 그룹.
+pub fn run_vector(app: &mut PhotocraftApp, params: &TraceParams) -> CatResult<Vec<LayerId>> {
+    let r = active_layer_raster(app)?;
+    let w = u32::try_from(r.width).map_err(|_| "이미지가 너무 큽니다.")?;
+    let h = u32::try_from(r.height).map_err(|_| "이미지가 너무 큽니다.")?;
+    let raster = Raster::new(w, h, r.rgba).map_err(|e| e.to_string())?;
+    let result = trace_within(&raster, params, MAX_TRACE_ANCHORS).map_err(|e| format!("트레이스 실패: {e}"))?;
+    let items = group_traced_paths(&result, r.origin);
+    create_trace_layers(app, &r.layer.name, items)
+}
+
+/// 트레이스 셰이프 묶음 키: (색, 스트로크 폭 비트, 사각 캡)
+type TraceKey = ([u8; 3], Option<u64>, bool);
+
+/// 트레이스 경로를 (색, 스트로크 폭)별로 모아 셰이프 하나씩 (처음 나온 순서 = 아래→위 유지)
+pub fn group_traced_paths(result: &TraceResult, [ox, oy]: [f64; 2]) -> Vec<(ShapePath, ShapeOptions)> {
+    let shift = vectorcraft_geom::Affine::translate((ox, oy));
+    let mut groups: Vec<(TraceKey, vectorcraft_geom::PathData)> = Vec::new();
+    for tp in &result.paths {
+        let key = (tp.color, tp.stroke.map(f64::to_bits), tp.square_caps);
+        let path = tp.path.transformed(shift);
+        match groups.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, acc)) => acc.subpaths.extend(path.subpaths),
+            None => groups.push((key, path)),
+        }
+    }
+    groups
+        .into_iter()
+        .filter(|(_, p)| !p.is_empty())
+        .map(|((color, stroke, square), path)| {
+            let shape_path = path_data_to_shape_path(&path, FillRule::NonZero);
+            let options = match stroke.map(f64::from_bits) {
+                Some(width) => ShapeOptions {
+                    no_fill: true,
+                    stroke: Some(StrokeSettings {
+                        enabled: true,
+                        width,
+                        alignment: "center".into(),
+                        cap: if square { "square" } else { "round" }.into(),
+                        join: "round".into(),
+                        color,
+                    }),
+                    ..Default::default()
+                },
+                None => ShapeOptions { fill: Some(color), ..Default::default() },
+            };
+            (shape_path, options)
+        })
+        .collect()
 }
 
 fn offset_path(mut p: ShapePath, [ox, oy]: [f64; 2]) -> ShapePath {
@@ -1096,6 +1178,67 @@ mod tests {
         let xs: Vec<f64> = p.subpaths[0].knots.iter().map(|k| k.anchor[0]).collect();
         let (lo, hi) = (xs.iter().copied().fold(f64::MAX, f64::min), xs.iter().copied().fold(f64::MIN, f64::max));
         assert!((lo - 10.0).abs() < 1.0 && (hi - 40.0).abs() < 1.0, "{lo} {hi}");
+    }
+
+    /// 레이어 "Art": 빨강 (10,10) 30x20 + 파랑 (40,10) 20x20
+    fn two_color_art(app: &mut PhotocraftApp) -> LayerId {
+        new_doc(app, "doc", 80, 60);
+        let src = rect_layer(app, "Art", 10, 10, 30, 20, "#ff0000");
+        crate::cat::lib::core::exec(app, "select.rect", serde_json::json!({"x": 40, "y": 10, "width": 20, "height": 20})).unwrap();
+        crate::cat::lib::core::exec(app, "edit.fill", serde_json::json!({"contents": "color", "color": "#0000ff"})).unwrap();
+        crate::cat::lib::core::exec(app, "select.deselect", serde_json::json!({})).unwrap();
+        crate::cat::lib::layer::select_layer(app, src, false).unwrap();
+        src
+    }
+
+    #[test]
+    fn vector_trace_color_makes_one_shape_per_color() {
+        let (mut app, _dir) = test_app();
+        two_color_art(&mut app);
+        let before = app.session.active().unwrap().history.past_len();
+        let params = vectorcraft_trace::preset("6 Colors").unwrap();
+        let ids = run_vector(&mut app, &params).unwrap();
+        assert_eq!(ids.len(), 2);
+        let mut colors: Vec<[u8; 3]> = ids.iter().map(|id| get_shape_fill_color(&app, *id).unwrap()).collect();
+        colors.sort_unstable();
+        assert_eq!(colors, vec![[0, 0, 255], [255, 0, 0]]);
+        assert_eq!(app.session.active().unwrap().history.past_len(), before + 1, "Undo 1단계");
+        let layers = all_layers(&app).unwrap();
+        let group = layers.iter().find(|l| l.name == "Art_trace").unwrap();
+        assert!(ids.iter().all(|id| layers.iter().any(|l| l.id == *id && l.parent == Some(group.id))));
+        // 빨강 셰이프 영역 = 30x20 (문서 좌표)
+        let red = ids.iter().find(|id| get_shape_fill_color(&app, **id).unwrap() == [255, 0, 0]).unwrap();
+        let region = crate::cat::lib::shape::get_shape_region(&app, *red).unwrap();
+        let b = region.bounds().unwrap();
+        assert!((b.x0 - 10.0).abs() < 0.6 && (b.x1 - 40.0).abs() < 0.6 && (b.y0 - 10.0).abs() < 0.6, "{b:?}");
+        let area = vectorcraft_pathops::area(&region, FillRule::NonZero);
+        assert!((area - 600.0).abs() < 15.0, "{area}");
+    }
+
+    #[test]
+    fn vector_trace_black_and_white_makes_single_black_shape() {
+        let (mut app, _dir) = test_app();
+        two_color_art(&mut app);
+        let ids = run_vector(&mut app, &TraceParams::default()).unwrap();
+        // 빨강·파랑 모두 임계값 128 보다 어둡다 → 검정 하나
+        assert_eq!(ids.len(), 1);
+        assert_eq!(get_shape_fill_color(&app, ids[0]).unwrap(), [0, 0, 0]);
+        let b = crate::cat::lib::shape::get_shape_region(&app, ids[0]).unwrap().bounds().unwrap();
+        assert!((b.x0 - 10.0).abs() < 0.6 && (b.x1 - 60.0).abs() < 0.6, "{b:?}");
+    }
+
+    #[test]
+    fn vector_trace_strokes_mode_makes_stroked_shape() {
+        let (mut app, _dir) = test_app();
+        new_doc(&mut app, "doc", 80, 60);
+        // 3px 두께 가로선
+        let src = rect_layer(&mut app, "Line", 10, 29, 60, 3, "#000000");
+        crate::cat::lib::layer::select_layer(&mut app, src, false).unwrap();
+        let params = vectorcraft_trace::preset("Outline").unwrap();
+        let ids = run_vector(&mut app, &params).unwrap();
+        assert_eq!(ids.len(), 1);
+        let st = crate::cat::lib::shape::get_stroke_settings(&app, ids[0]).unwrap().unwrap();
+        assert!(st.enabled && (st.width - 3.0).abs() < 1.0, "{st:?}");
     }
 
     #[test]
