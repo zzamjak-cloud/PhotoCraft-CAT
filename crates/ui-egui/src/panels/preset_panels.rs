@@ -21,8 +21,8 @@ use crate::theme::Tokens;
 mod panels;
 
 pub use panels::{
-    clone_sample_point, clone_source_panel, finish_custom_shape, gradients_panel, patterns_panel, select_tool_preset, shape_picker, shapes_panel, styles_panel,
-    tool_presets_panel, windows,
+    clone_sample_point, clone_source_panel, finish_custom_shape, gradients_panel, patterns_panel, select_tool_preset, shape_picker, shapes_panel, styles_menu,
+    styles_panel, tool_presets_panel, windows,
 };
 #[cfg(test)]
 use panels::{new_tool_preset_params, tool_id};
@@ -131,7 +131,19 @@ fn color_tab(id: &str) -> Option<usize> {
     }
 }
 
-fn float_flag<'a>(p: &'a mut PresetUi, id: &str) -> Option<&'a mut bool> {
+/// Presets 도크 그룹의 탭 (Window › Tool Presets / Shapes / Styles / Clone Source).
+pub(crate) fn presets_tab(id: &str) -> Option<usize> {
+    match id {
+        "window.panel.toolPresets" => Some(0),
+        "window.panel.shapes" => Some(1),
+        "window.panel.styles" => Some(2),
+        "window.panel.cloneSource" => Some(3),
+        _ => None,
+    }
+}
+
+/// 예전 플로팅 패널 플래그 ↔ 메뉴 id (저장된 UI 상태·다른 모듈의 "보여 줘" 요청을 도크로 넘긴다).
+pub(crate) fn float_flag<'a>(p: &'a mut PresetUi, id: &str) -> Option<&'a mut bool> {
     Some(match id {
         "window.panel.styles" => &mut p.styles,
         "window.panel.shapes" => &mut p.shapes,
@@ -158,17 +170,23 @@ pub fn menu(app: &mut PhotocraftApp, id: &str, params: &Value) -> Option<Result<
         }
         return Some(Ok(json!({"visible": show})));
     }
-    let flag = float_flag(&mut app.ui.presets_ui, id)?;
-    *flag = want.unwrap_or(!*flag);
-    Some(Ok(json!({"visible": *flag})))
+    let tab = presets_tab(id)?;
+    use crate::dock::Group;
+    let showing = app.ui.panels.presets && app.ui.dock_tabs.presets == tab && !app.ui.dock.is_collapsed(Group::Presets);
+    let show = want.unwrap_or(!showing);
+    app.ui.panels.presets = show || (app.ui.panels.presets && app.ui.dock_tabs.presets != tab);
+    if show {
+        app.ui.dock_tabs.presets = tab;
+        crate::dock::reveal(app, Group::Presets);
+    }
+    Some(Ok(json!({"visible": show})))
 }
 
 pub fn checked(app: &PhotocraftApp, id: &str) -> Option<bool> {
     if let Some(tab) = color_tab(id) {
         return Some(app.ui.panels.color && app.ui.dock_tabs.color == tab);
     }
-    let mut p = app.ui.presets_ui.clone();
-    float_flag(&mut p, id).map(|f| *f)
+    presets_tab(id).map(|tab| app.ui.panels.presets && app.ui.dock_tabs.presets == tab)
 }
 
 pub(crate) fn run(app: &mut PhotocraftApp, id: &str, p: Value) -> Option<Value> {
@@ -716,6 +734,15 @@ mod tests {
     }
 
     #[test]
+    fn old_floating_flags_open_the_presets_dock_tab() {
+        let (mut app, ctx) = app();
+        app.ui.presets_ui.shapes = true;
+        windows(&mut app, &ctx);
+        assert!(!app.ui.presets_ui.shapes, "the request is consumed");
+        assert!(app.ui.panels.presets && app.ui.dock_tabs.presets == 1);
+    }
+
+    #[test]
     fn window_menu_toggles_panels_and_color_tabs() {
         let (mut app, ctx) = app();
         for id in PANELS {
@@ -730,10 +757,10 @@ mod tests {
         // Choosing it again hides the card.
         invoke(&mut app, &ctx, "window.panel.patterns", Value::Null).unwrap();
         assert!(!app.ui.panels.color);
-        for (id, f) in [("window.panel.styles", 0), ("window.panel.shapes", 1), ("window.panel.toolPresets", 2), ("window.panel.cloneSource", 3)] {
+        // Tool Presets·Shapes·Styles·Clone Source 는 Presets 도크 그룹의 탭이다.
+        for (id, tab) in [("window.panel.toolPresets", 0), ("window.panel.shapes", 1), ("window.panel.styles", 2), ("window.panel.cloneSource", 3)] {
             invoke(&mut app, &ctx, id, Value::Null).unwrap();
-            let p = &app.ui.presets_ui;
-            assert!([p.styles, p.shapes, p.tool_presets, p.clone_source][f], "{id}");
+            assert!(app.ui.panels.presets && app.ui.dock_tabs.presets == tab, "{id}");
             assert_eq!(checked(&app, id), Some(true));
             invoke(&mut app, &ctx, id, json!({"show": false})).unwrap();
             assert_eq!(checked(&app, id), Some(false));

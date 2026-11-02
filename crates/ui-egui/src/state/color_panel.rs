@@ -17,6 +17,9 @@ pub struct DockTabs {
     pub brushes: usize,
     /// CAT Tools | 9-Slice Images.
     pub cat: usize,
+    /// Tool Presets | Shapes | Styles | Clone Source.
+    #[serde(default)]
+    pub presets: usize,
 }
 
 /// Color panel state.

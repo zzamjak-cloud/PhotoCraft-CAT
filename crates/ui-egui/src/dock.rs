@@ -39,12 +39,14 @@ pub enum Group {
     Brushes,
     /// CAT Tools | 9-Slice Images (CAT 플러그인 이식 패널).
     Cat,
+    /// Tool Presets | Shapes | Styles | Clone Source (업스트림의 플로팅 전용 패널을 도크에 넣은 그룹).
+    Presets,
 }
 
 impl Group {
     /// Photoshop Essentials order, top to bottom.
-    pub const ALL: [Group; 8] =
-        [Group::Color, Group::Properties, Group::Character, Group::Navigator, Group::History, Group::Cat, Group::Layers, Group::Brushes];
+    pub const ALL: [Group; 9] =
+        [Group::Color, Group::Properties, Group::Character, Group::Navigator, Group::History, Group::Cat, Group::Presets, Group::Layers, Group::Brushes];
 
     pub fn key(self) -> &'static str {
         match self {
@@ -56,6 +58,7 @@ impl Group {
             Group::Layers => "layers",
             Group::Brushes => "brushes",
             Group::Cat => "cat",
+            Group::Presets => "presets",
         }
     }
 
@@ -71,6 +74,7 @@ impl Group {
             Group::Layers => 320.0,
             Group::Brushes => 200.0,
             Group::Cat => 260.0,
+            Group::Presets => 280.0,
         }
     }
 
@@ -86,6 +90,7 @@ impl Group {
             Group::Layers => 200.0,
             Group::Brushes => 150.0,
             Group::Cat => 120.0,
+            Group::Presets => 140.0,
         }
     }
 
@@ -120,6 +125,7 @@ impl Group {
             Group::Layers => &["Layers", "Channels", "Paths"],
             Group::Brushes => &["Brushes"],
             Group::Cat => &["CAT Tools", "9-Slice Images"],
+            Group::Presets => &["Tool Presets", "Shapes", "Styles", "Clone Source"],
         }
     }
 
@@ -142,6 +148,7 @@ impl Group {
             Group::Layers => &mut tabs.layers,
             Group::Brushes => &mut tabs.brushes,
             Group::Cat => &mut tabs.cat,
+            Group::Presets => &mut tabs.presets,
         }
     }
 
@@ -160,6 +167,7 @@ impl Group {
             Group::Layers => panels.layers,
             Group::Brushes => panels.brushes,
             Group::Cat => panels.cat,
+            Group::Presets => panels.presets,
         }
     }
 
@@ -173,6 +181,7 @@ impl Group {
             Group::Layers => &mut panels.layers,
             Group::Brushes => &mut panels.brushes,
             Group::Cat => &mut panels.cat,
+            Group::Presets => &mut panels.presets,
         }
     }
 }

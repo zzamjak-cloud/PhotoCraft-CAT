@@ -43,6 +43,10 @@ const PANELS: &[(&str, &str, Group)] = &[
     ("brushes", "Brushes", Group::Brushes),
     ("catTools", "CAT Tools", Group::Cat),
     ("nineSlice", "9-Slice Images", Group::Cat),
+    ("toolPresets", "Tool Presets", Group::Presets),
+    ("shapes", "Shapes", Group::Presets),
+    ("styles", "Styles", Group::Presets),
+    ("cloneSource", "Clone Source", Group::Presets),
 ];
 
 /// PhotoCraft's wording of craft-ui's docking labels, translated through `tl!`. The others keep
@@ -1138,6 +1142,7 @@ pub(crate) fn prepare_legacy_update(
                 Group::Layers => tabs.layers,
                 Group::Brushes => tabs.brushes,
                 Group::Cat => tabs.cat,
+                Group::Presets => tabs.presets,
             };
             let id = group.tabs(pro).get(index).and_then(|label| normalize(label)).ok_or("dockTabs index is outside the panel group")?;
             if visibility == Some(false) {
@@ -1207,6 +1212,10 @@ fn panel_menu(app: &mut PhotocraftApp, ui: &mut egui::Ui, panel: &str) {
         }
         "histogram" => {
             crate::histogram_panel::panel_menu(app, ui);
+            ui.separator();
+        }
+        "styles" => {
+            crate::preset_panels::styles_menu(app, ui);
             ui.separator();
         }
         _ => {}

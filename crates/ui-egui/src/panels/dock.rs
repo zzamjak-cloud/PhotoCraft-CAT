@@ -46,7 +46,7 @@ fn rail(app: &mut PhotocraftApp, ui: &mut egui::Ui, t: &Tokens) {
             ui.painter().line_segment([pos2(x, r.top() - 8.0), pos2(x, r.bottom() + 8.0)], Stroke::new(1.0, t.separator));
             ui.spacing_mut().item_spacing.y = 4.0;
             use crate::dock::Group;
-            let entries: [(&str, &str, Group); 7] = [
+            let entries: [(&str, &str, Group); 8] = [
                 ("sliders-horizontal", tl!("Properties"), Group::Properties),
                 ("navigation", tl!("Navigator"), Group::Navigator),
                 ("palette", tl!("Color & Swatches"), Group::Color),
@@ -54,6 +54,7 @@ fn rail(app: &mut PhotocraftApp, ui: &mut egui::Ui, t: &Tokens) {
                 ("clock", tl!("History"), Group::History),
                 ("brush", tl!("Brushes"), Group::Brushes),
                 ("grid-3x3", "CAT", Group::Cat),
+                ("bookmark", tl!("Tool Presets"), Group::Presets),
             ];
             for (icon, name, g) in entries {
                 // Studio floats Properties outside the dock.
@@ -121,5 +122,9 @@ pub(crate) fn dock_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, group: crate
         (Group::Brushes, _) => crate::brushes_tab::show(app, ui),
         (Group::Cat, 0) => crate::cat::tools_panel(app, ui),
         (Group::Cat, _) => crate::cat::nine_slice_panel(app, ui),
+        (Group::Presets, 0) => crate::preset_panels::tool_presets_panel(app, ui),
+        (Group::Presets, 1) => crate::preset_panels::shapes_panel(app, ui),
+        (Group::Presets, 2) => crate::preset_panels::styles_panel(app, ui),
+        (Group::Presets, _) => crate::preset_panels::clone_source_panel(app, ui),
     }
 }
