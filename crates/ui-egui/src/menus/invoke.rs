@@ -67,6 +67,9 @@ fn invoke_early_commands(app: &mut PhotocraftApp, ctx: &egui::Context, id: &str,
     if id == "help.checkForUpdates" {
         return Some(crate::updates_ui::check(app, ctx, params.clone()));
     }
+    if id == "layer.outlineStroke" {
+        return Some(crate::cat::features::outline_stroke::run_outline(app).map(|l| json!({"layer": l.0})));
+    }
     if let Some(target) = color_chip_target(id) {
         return Some(Ok(json!({"dialog": crate::color_picker_ui::open(app, target)})));
     }

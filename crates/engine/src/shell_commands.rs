@@ -12,6 +12,8 @@ pub const SHELL_COMMANDS: &[(&str, &str, &[&str], Option<&str>)] = &[
     // 툴바 색상 칩 클릭과 같다: Color Picker 를 연다. 기본 단축키는 없고 Keyboard Shortcuts 에서 지정한다.
     ("tools.setForegroundColor", "Set Foreground Color", &[], None),
     ("tools.setBackgroundColor", "Set Background Color", &[], None),
+    // Layers 패널 셰이프 레이어 우클릭: 스트로크를 면으로 (Illustrator Outline Stroke, CAT outlineStroke).
+    ("layer.outlineStroke", "Outline Stroke", &[], None),
     // Right-click the options bar's tool icon (#2825); `tool.resetAll` asks first.
     ("tool.reset", "Reset Tool", &[], None),
     ("tool.resetAll", "Reset All Tools", &[], None),

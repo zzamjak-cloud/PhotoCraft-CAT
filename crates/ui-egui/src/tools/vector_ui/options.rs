@@ -107,6 +107,13 @@ pub fn options_bar(app: &mut PhotocraftApp, ui: &mut egui::Ui, tool: Tool) -> bo
                 app.ui.status = e;
                 app.ui.status_error = true;
             }
+            // Make Shape: 패스를 전경색으로 채운 셰이프 레이어로 (Photoshop Make: Shape).
+            if ui.add_enabled(has_path, egui::Button::new(tl!("Make Shape"))).on_hover_text(tl!("Make a filled shape layer from the path")).clicked()
+                && let Err(e) = crate::canvas_tool_menu::make_shape(app)
+            {
+                app.ui.status = e;
+                app.ui.status_error = true;
+            }
         }
         return true;
     }

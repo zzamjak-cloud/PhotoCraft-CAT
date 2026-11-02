@@ -69,6 +69,9 @@ pub fn is_enabled(app: &PhotocraftApp, id: &str) -> bool {
         // Interface brightness works with or without a document, as in Photoshop.
         "view.darkenInterface" | "view.lightenInterface" => true,
         "tools.setForegroundColor" | "tools.setBackgroundColor" => true,
+        "layer.outlineStroke" => app.session.active().and_then(|st| st.doc.layer(st.active_layer?)).is_some_and(|l| {
+            matches!(&l.content, photocraft_doc::LayerContent::Shape(sh) if sh.stroke.as_ref().is_some_and(|s| s.width > 0.0))
+        }),
         "file.save" | "file.saveAs" | "file.export.exportAs" | "file.export.quickExportAsPng" => {
             app.session.active().is_some() && app.services.export.is_some()
         }

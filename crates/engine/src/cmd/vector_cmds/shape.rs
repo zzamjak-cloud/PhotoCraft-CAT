@@ -558,6 +558,24 @@ pub(super) fn combine_shapes(s: &mut Session, p: &Value, op: &str, label: &str) 
     shape_edit(s, &with(p, "op", json!(op)))
 }
 
+/// 패스(작업 패스·저장된 패스·활성 레이어 패스)로 채워진 셰이프 레이어를 만든다 (Photoshop Make: Shape).
+pub(super) fn path_to_shape(s: &mut Session, p: &Value) -> Result<Value> {
+    let path = super::paths::resolve_path(s, p.get("name").and_then(Value::as_str))?;
+    if path.subpaths.iter().all(|sp| sp.knots.len() < 2) {
+        return Err(EngineError::Other("the path is empty".into()));
+    }
+    let mut q = json!({ "kind": "path", "path": path_json(&path) });
+    for k in ["fill", "stroke"] {
+        if let Some(v) = p.get(k) {
+            q[k] = v.clone();
+        }
+    }
+    if let Some(v) = p.get("layerName") {
+        q["name"] = v.clone();
+    }
+    shape_create(s, &q)
+}
+
 pub(super) fn selection_to_shape(s: &mut Session, p: &Value) -> Result<Value> {
     let tol = f64p(p, "tolerance").or_else(|| f64p(p, "simplifyTolerance")).unwrap_or(2.0).clamp(0.5, 10.0);
     let d = s.active().ok_or(EngineError::NoDocument)?;

@@ -588,3 +588,21 @@ fn type_layer_menu_converts_to_shape() {
     let st = app.session.active().unwrap();
     assert!(matches!(st.doc.layer(st.active_layer.unwrap()).unwrap().content, LayerContent::Shape(_)));
 }
+
+/// 셰이프 레이어 우클릭 Outline Stroke: 스트로크가 있을 때만 켜지고, 실행하면 스트로크 모양의 채워진 셰이프가 된다.
+#[test]
+fn shape_layer_menu_outlines_the_stroke() {
+    let mut app = crate::PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
+    app.run("file.new", serde_json::json!({"width": 100, "height": 100})).unwrap();
+    app.run("shape.create", serde_json::json!({"kind": "rect", "rect": [20, 20, 40, 40], "fill": "#ff0000"})).unwrap();
+    let st = app.session.active().unwrap();
+    let l = st.doc.layer(st.active_layer.unwrap()).unwrap();
+    assert!(entries(l, false, false).into_iter().flatten().any(|e| e.1 == "layer.outlineStroke"));
+    assert!(!crate::menus::is_enabled(&app, "layer.outlineStroke"), "no stroke yet");
+    app.run("shape.edit", serde_json::json!({"stroke": {"enabled": true, "width": 4, "color": "#0000ff"}})).unwrap();
+    assert!(crate::menus::is_enabled(&app, "layer.outlineStroke"));
+    crate::menus::invoke(&mut app, &egui::Context::default(), "layer.outlineStroke", serde_json::json!({})).unwrap();
+    let st = app.session.active().unwrap();
+    let l = st.doc.layer(st.active_layer.unwrap()).unwrap();
+    assert!(matches!(&l.content, LayerContent::Shape(sh) if sh.fill.is_some() && sh.stroke.is_none()));
+}

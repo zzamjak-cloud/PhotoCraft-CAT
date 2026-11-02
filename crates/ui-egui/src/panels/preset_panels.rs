@@ -54,6 +54,40 @@ pub struct PresetUi {
     /// In-place rename: (panel, preset or "group:<name>", text).
     #[serde(skip)]
     pub renaming: Option<(String, String, String)>,
+    /// 패널별 검색어 (Shapes 검색창). 비어 있지 않으면 모든 폴더를 펼치고 폴더 끌어 옮기기를 막는다.
+    #[serde(skip)]
+    pub search: BTreeMap<String, String>,
+}
+
+impl PresetUi {
+    /// `panel` 의 검색어가 있는가.
+    pub(crate) fn searching(&self, panel: &str) -> bool {
+        self.search.get(panel).is_some_and(|q| !q.trim().is_empty())
+    }
+}
+
+/// 한글 음절의 초성 (호환 자모 ㄱ…ㅎ), 음절이 아니면 `None`.
+fn choseong(c: char) -> Option<char> {
+    const INITIALS: [char; 19] = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+    let code = u32::from(c).checked_sub(0xAC00).filter(|&n| n < 11_172)?;
+    INITIALS.get((code / 588) as usize).copied()
+}
+
+/// 검색어 글자 `q` 가 이름 글자 `c` 와 맞는가: 같은 글자(대소문자 무시)이거나, `q` 가 초성 자모이고
+/// `c` 가 그 초성으로 시작하는 음절.
+fn char_matches(q: char, c: char) -> bool {
+    q == c || q.to_lowercase().eq(c.to_lowercase()) || choseong(c) == Some(q)
+}
+
+/// 이름에 검색어가 연속으로 들어 있는가 (초성만 입력해도 맞는다: "ㅂㅅ" → "보석", "ㅂ석" → "보석").
+/// 공백만 있는 검색어는 모두 맞는다.
+pub(crate) fn name_matches(name: &str, query: &str) -> bool {
+    let q: Vec<char> = query.trim().chars().collect();
+    if q.is_empty() {
+        return true;
+    }
+    let n: Vec<char> = name.chars().collect();
+    n.len() >= q.len() && (0..=n.len() - q.len()).any(|i| q.iter().zip(&n[i..]).all(|(&a, &b)| char_matches(a, b)))
 }
 
 /// Read `groupOrder` keeping what makes sense: non-object values, non-list entries and non-string
@@ -364,6 +398,9 @@ pub(crate) enum Ev {
 }
 
 fn group_open(st: &PresetUi, panel: &str, gi: usize, name: &str) -> bool {
+    if st.searching(panel) {
+        return true;
+    }
     // Swatch groups are small and all start open (Photoshop); other panels open the first only.
     (gi == 0 || panel == crate::swatches_ui::PANEL) != st.toggled.contains(&format!("{panel}/{name}"))
 }
@@ -600,7 +637,7 @@ pub(crate) fn browser(
         },
     );
     // Apply the drop now every header rect is known; the next frame draws the new order.
-    if let Some((from, p)) = released {
+    if let Some((from, p)) = released.filter(|_| !st.searching(panel)) {
         let before = group_drop_before(&headers, from, p.y);
         let from_name = groups.get(from).map(|g| g.name.clone());
         let before_name = before.and_then(|i| groups.get(i).map(|g| g.name.clone()));
@@ -731,6 +768,47 @@ mod tests {
         app.run("file.new", json!({"width": 64, "height": 48})).unwrap();
         app.sync_views();
         (app, ctx)
+    }
+
+    /// 검색: 대소문자 무시 부분 일치, 한글 초성(섞어 쓴 것도) 일치.
+    #[test]
+    fn shape_search_matches_initial_consonants() {
+        assert!(name_matches("Arrow 12", "arr"));
+        assert!(name_matches("Arrow 12", "  "));
+        assert!(name_matches("보석 상자", "ㅂㅅ"));
+        assert!(name_matches("보석 상자", "ㅅㅈ"));
+        assert!(name_matches("보석 상자", "ㅂ석"));
+        assert!(name_matches("빨간 별", "ㅃㄱ"));
+        assert!(!name_matches("보석 상자", "ㅂㅈ"));
+        assert!(!name_matches("Arrow", "arrows"));
+        assert!(!name_matches("보석", "ㄱ"));
+    }
+
+    /// 검색어가 있으면 맞는 셰이프만 그리고 모든 폴더를 펼친다. 안 맞으면 안내 문구.
+    #[test]
+    fn the_shapes_search_filters_and_opens_folders() {
+        let (mut app, ctx) = app();
+        let draw = |app: &mut PhotocraftApp| {
+            let mut texts = Vec::new();
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| shapes_panel(app, ui));
+            out.textures_delta.clear();
+            for s in out.shapes.iter() {
+                if let egui::epaint::Shape::Text(t) = &s.shape {
+                    texts.push(t.galley.text().to_string());
+                }
+            }
+            texts
+        };
+        let names: Vec<String> = photocraft_engine::presets::shapes::all_groups(&app.session).iter().map(|g| g.name.clone()).collect();
+        assert!(names.len() > 1, "{names:?}");
+        app.ui.presets_ui.search.insert("shapes".into(), "zzzz-nothing".into());
+        assert!(app.ui.presets_ui.searching("shapes"));
+        assert!(draw(&mut app).iter().any(|t| t == "No matching shapes"));
+        let second = names[1].clone();
+        app.ui.presets_ui.search.insert("shapes".into(), second.clone());
+        assert!(group_open(&app.ui.presets_ui, "shapes", 1, &second));
+        let texts = draw(&mut app);
+        assert!(texts.iter().any(|t| t.contains(&second)), "{texts:?}");
     }
 
     #[test]

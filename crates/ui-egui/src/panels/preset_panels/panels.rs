@@ -1,6 +1,6 @@
 use super::{
     Align2, Color32, Ev, FontId, GroupView, ItemView, PhotocraftApp, Place, Pos2, Rect, Sense, Stroke, TextureHandle, Tokens, Tool, Value,
-    browser, canvas_drop_rect, empty, generic, json, paint_gradient, pattern_texture, pos2, run, shape_texture, style_texture, vec2,
+    browser, canvas_drop_rect, empty, generic, json, name_matches, paint_gradient, pattern_texture, pos2, run, shape_texture, style_texture, vec2,
 };
 
 // ------------------------------------------------------------------ Gradients
@@ -225,9 +225,29 @@ fn export_styles(app: &mut PhotocraftApp, params: Value, suggested: &str) -> Res
 
 pub fn shapes_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     let src = photocraft_engine::presets::shapes::all_groups(&app.session);
-    let groups: Vec<GroupView> = src
+    // 검색창: 셰이프 이름이나 폴더 이름이 맞는 셰이프만 (한글 초성 검색 지원).
+    let query = shapes_search_field(app, ui);
+    // (원본 그룹, 원본 셰이프 인덱스들): 걸러진 목록에서 썸네일을 찾을 때 쓴다.
+    let shown: Vec<(usize, Vec<usize>)> = src
         .iter()
-        .map(|g| GroupView { name: g.name.clone(), items: g.items.iter().map(|i| ItemView { key: i.name.clone(), name: i.name.clone() }).collect() })
+        .enumerate()
+        .filter_map(|(gi, g)| {
+            let group_hit = name_matches(&g.name, &query);
+            let items: Vec<usize> = (0..g.items.len()).filter(|&ii| group_hit || g.items.get(ii).is_some_and(|i| name_matches(&i.name, &query))).collect();
+            (query.trim().is_empty() || !items.is_empty()).then_some((gi, items))
+        })
+        .collect();
+    if !query.trim().is_empty() && shown.is_empty() {
+        let t = Tokens::get(ui.ctx());
+        ui.label(egui::RichText::new(tl!("No matching shapes")).color(t.text_dim).size(11.0));
+    }
+    let groups: Vec<GroupView> = shown
+        .iter()
+        .filter_map(|(gi, items)| {
+            let g = src.get(*gi)?;
+            let items = items.iter().filter_map(|&ii| g.items.get(ii)).map(|i| ItemView { key: i.name.clone(), name: i.name.clone() }).collect();
+            Some(GroupView { name: g.name.clone(), items })
+        })
         .collect();
     let canvas = canvas_drop_rect(app);
     let mut st = std::mem::take(&mut app.ui.presets_ui);
@@ -240,8 +260,11 @@ pub fn shapes_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
         &groups,
         Place { canvas, max_h: f32::INFINITY, new_tip: tl!("Create new shape from the current path"), flush: false },
         &mut |ui, r, gi, ii| {
-            let tex = shape_texture(&ctx, &src[gi].items[ii]);
-            ui.painter().image(tex.id(), r.shrink(2.0), Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)), t.text);
+            let item = shown.get(gi).and_then(|(sg, items)| src.get(*sg)?.items.get(*items.get(ii)?));
+            if let Some(item) = item {
+                let tex = shape_texture(&ctx, item);
+                ui.painter().image(tex.id(), r.shrink(2.0), Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)), t.text);
+            }
         },
     );
     app.ui.presets_ui = st;
@@ -272,6 +295,25 @@ pub fn shapes_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
             }
         }
     }
+}
+
+/// Shapes 패널 위쪽 검색창 (Brushes 패널과 같은 모양). 현재 검색어를 돌려준다.
+fn shapes_search_field(app: &mut PhotocraftApp, ui: &mut egui::Ui) -> String {
+    let t = Tokens::get(ui.ctx());
+    let mut q = app.ui.presets_ui.search.get("shapes").cloned().unwrap_or_default();
+    ui.horizontal(|ui| {
+        crate::icons::paint(ui, Rect::from_min_size(ui.cursor().min + vec2(0.0, 3.0), vec2(16.0, 16.0)), "search", 14.0, t.text_faint);
+        ui.add_space(20.0);
+        let w = (ui.available_width() - 4.0).max(60.0);
+        crate::widgets::text_field(ui, ui.scope_id().with("shape-search"), &mut q, tl!("Search Shapes"), w, false);
+    });
+    ui.add_space(2.0);
+    if q.is_empty() {
+        app.ui.presets_ui.search.remove("shapes");
+    } else {
+        app.ui.presets_ui.search.insert("shapes".into(), q.clone());
+    }
+    q
 }
 
 fn shape_fill(app: &PhotocraftApp) -> Value {

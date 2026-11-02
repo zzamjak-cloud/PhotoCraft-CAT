@@ -1218,3 +1218,27 @@ fn crop_menu_rows_act_like_the_options_bar() {
     choose(&mut app, &ctx, CROP_CANCEL);
     assert!(!crate::crop_ui::pending(&app));
 }
+
+/// Pen 옵션 바 Make Shape: 그리던 패스가 전경색 셰이프 레이어가 되고 작업 패스는 사라지며, Undo 한 번에 되돌아간다.
+#[test]
+fn pen_options_bar_makes_a_filled_shape_from_the_path() {
+    let mut app = app();
+    app.ui.tool = Tool::Pen;
+    app.ui.tool_options.vector_mode = "path".into();
+    assert!(make_shape(&mut app).is_err(), "no path yet");
+    for (x, y) in [(2.0, 2.0), (20.0, 2.0), (20.0, 20.0)] {
+        crate::vector_ui::pen_down(&mut app, x, y, false);
+        crate::vector_ui::pen_up(&mut app);
+    }
+    let before = app.session.active().unwrap().history.past_len();
+    make_shape(&mut app).unwrap();
+    let st = app.session.active().unwrap();
+    let l = st.doc.layer(st.active_layer.unwrap()).unwrap();
+    assert!(matches!(&l.content, photocraft_doc::LayerContent::Shape(sh) if sh.fill.is_some()));
+    assert!(st.doc.work_path.is_none(), "the Work Path became the shape");
+    assert_eq!(st.history.past_len(), before + 2, "pen commit, then one Make Shape step");
+    app.run("edit.undo", json!({})).unwrap();
+    let st = app.session.active().unwrap();
+    assert!(st.doc.work_path.is_some());
+    assert!(!st.doc.layers.iter().any(|l| matches!(l.content, photocraft_doc::LayerContent::Shape(_))));
+}

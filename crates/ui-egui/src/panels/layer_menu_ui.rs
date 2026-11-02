@@ -79,7 +79,11 @@ pub fn entries(l: &Layer, multi: bool, has_selection: bool) -> Vec<Entry> {
                 v.push(Some(("Create Work Path", "type.createWorkPath")));
                 v.push(Some(("Convert to Shape", "type.convertToShape")));
             }
-            LayerContent::Shape(_) => v.push(Some(("Rasterize Layer", "layer.rasterize.shape"))),
+            LayerContent::Shape(_) => {
+                v.push(Some(("Rasterize Layer", "layer.rasterize.shape")));
+                // 스트로크를 면 셰이프로 (Illustrator Outline Stroke). 스트로크가 없으면 회색.
+                v.push(Some(("Outline Stroke", "layer.outlineStroke")));
+            }
             LayerContent::Smart(_) => {
                 v.push(Some((tl!("Edit Contents"), "layer.smartObjects.editContents")));
                 v.push(Some((tl!("Replace Contents…"), "layer.smartObjects.replaceContents")));

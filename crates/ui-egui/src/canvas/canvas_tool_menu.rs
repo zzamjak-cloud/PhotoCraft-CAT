@@ -1075,6 +1075,23 @@ pub(crate) fn make_selection(app: &mut PhotocraftApp) -> Result<(), String> {
     Ok(())
 }
 
+/// Pen 옵션 바 "Make Shape" (Photoshop Make: Shape): 그리던 패스 또는 활성 패스로 채워진 셰이프
+/// 레이어를 만든다. 작업 패스였으면 셰이프로 옮겨 가므로 지운다 (Undo 한 단계).
+pub(crate) fn make_shape(app: &mut PhotocraftApp) -> Result<(), String> {
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let pending = app.ui.pen.as_ref().is_some_and(|p| p.knots.len() >= 2);
+    if pending && !crate::vector_ui::pen_commit(app, false) {
+        return Err(app.ui.status.clone());
+    }
+    let name = crate::vector_ui::active_path_name(app).ok_or_else(|| "No path is available for this action".to_string())?;
+    let key = format!("make-shape-{}", SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+    app.run("path.toShape", json!({"name": name, "coalesce": key}))?;
+    if name == "work" {
+        app.run("path.delete", json!({"name": "work", "coalesce": key}))?;
+    }
+    Ok(())
+}
+
 fn choose_pen(app: &mut PhotocraftApp, ctx: &Context, menu: &CanvasToolMenu, command: &str) -> Result<(), String> {
     if command == "select.isolateLayers" {
         crate::menus::invoke(app, ctx, command, json!({}))?;

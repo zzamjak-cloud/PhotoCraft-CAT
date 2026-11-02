@@ -80,7 +80,7 @@ pub(crate) use paths::{is_work, path_mut};
 pub(crate) use shape::{bake_path, map_path, map_shape, shift_shape, with_shape};
 use shape::{
     can_paste_shape_fill, can_paste_shape_stroke, combine_shapes, copy_shape_fill, copy_shape_stroke, has_shape_fill, has_shape_stroke, merge_components,
-    paste_shape_fill, paste_shape_stroke, selection_to_shape, shape_create, shape_edit, shape_info, shape_rasterize,
+    paste_shape_fill, paste_shape_stroke, path_to_shape, selection_to_shape, shape_create, shape_edit, shape_info, shape_rasterize,
 };
 pub use shape::{preview_shape_stroke, refresh_shape, shape_path, transform_shape, translate_vectors};
 use vector_mask::{toggle_vector_mask, vector_mask_add, vector_mask_delete, vector_mask_edit, vector_mask_info, vector_mask_rasterize, with};
@@ -333,6 +333,14 @@ pub fn specs() -> Vec<CommandSpec> {
             merge_components
         ),
         spec!("select.convertToShape", "Convert to Shape", [], r##"{"tolerance":0.5..10 px=2} → shape.info"##, has_selection, selection_to_shape),
+        spec!(
+            "path.toShape",
+            "Make Shape",
+            [],
+            r##"{"name":str|"work"|"layer"="work",{fill}=foreground,{stroke}=none,"layerName":str?} (Pen 옵션 바 Make Shape: 패스로 채워진 셰이프 레이어를 만든다) → shape.info"##,
+            has_doc,
+            path_to_shape
+        ),
         CommandSpec {
             id: "layer.vectorMask.info",
             label: "Vector Mask Info",
