@@ -53,8 +53,9 @@ Assert-True ((Get-Content (Join-Path $Settings 'prefs.json')) -eq 'older install
 Assert-True (@(Get-ChildItem (Split-Path -Parent $Settings) -Filter 'Photocraft.before-install-*').Count -eq 0) 'a failed install leaves no backup'
 Remove-Item -Force $Log
 
-# Portable to installed.
-Run-Helper @{ Setup = $Setup1; Exe = $Installed; PortableDir = $Portable; InstallDir = $Install; OldExe = (Join-Path $Portable 'photocraft-cat.exe') }
+# Portable to installed. The helper deletes the installer it ran, so it gets a copy.
+Copy-Item $Setup1 (Join-Path $Work 'first.exe')
+Run-Helper @{ Setup = (Join-Path $Work 'first.exe'); Exe = $Installed; PortableDir = $Portable; InstallDir = $Install; OldExe = (Join-Path $Portable 'photocraft-cat.exe') }
 Assert-True (-not (Test-Path $Log)) 'conversion reports no failure'
 Assert-True (Test-Path $Installed) 'installed to the default folder'
 Assert-True (-not (Test-Path (Join-Path $Install 'portable.txt'))) 'the install is not portable'
