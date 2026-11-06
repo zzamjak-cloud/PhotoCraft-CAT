@@ -110,6 +110,9 @@ pub struct DocumentSettings {
     /// Display units only; width/height are always pixels and resolution is always ppi.
     pub unit: String,
     pub resolution_unit: String,
+    /// 최근 문서 카드 제목으로 쓸, 사용자가 입력한 문서 이름. `file.new` 매개변수에는 넣지 않는다.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 impl DocumentSettings {
@@ -243,8 +246,13 @@ pub(crate) fn load_recent(value: Value) -> Vec<DocumentSettings> {
 /// (the same document, perhaps shown in other units) removed, the oldest dropped past the cap.
 fn add_recent(s: &mut Session, p: &Value) -> Result<Value> {
     const CMD: &str = "document.recent.add";
-    let settings = DocumentSettings::from_params(s, p.get("settings").unwrap_or(&Value::Null), CMD)?;
+    let mut settings = DocumentSettings::from_params(s, p.get("settings").unwrap_or(&Value::Null), CMD)?;
     let recent = &mut s.presets.recent_documents;
+    settings.name = settings.name.as_deref().map(str::trim).filter(|n| !n.is_empty()).map(str::to_owned);
+    // 이름을 입력하지 않고 같은 규격을 다시 만들어도 카드 제목을 잃지 않는다.
+    if settings.name.is_none() {
+        settings.name = recent.iter().find(|r| r.command_params() == settings.command_params()).and_then(|r| r.name.clone());
+    }
     recent.retain(|r| r.command_params() != settings.command_params());
     recent.insert(0, settings);
     recent.truncate(MAX_RECENT);
@@ -261,7 +269,9 @@ fn save(s: &mut Session, p: &Value) -> Result<Value> {
     if s.presets.documents.len() >= MAX_PRESETS {
         return Err(bad(CMD, format!("At most {MAX_PRESETS} document presets can be saved")));
     }
-    let settings = DocumentSettings::from_params(s, p.get("settings").unwrap_or(&Value::Null), CMD)?;
+    let mut settings = DocumentSettings::from_params(s, p.get("settings").unwrap_or(&Value::Null), CMD)?;
+    // 프리셋 이름이 곧 제목이므로 대화상자의 문서 이름은 보관하지 않는다.
+    settings.name = None;
     let preset = DocumentPreset { name, settings };
     let result = json!({"preset":preset});
     s.presets.documents.push(preset);
@@ -541,6 +551,22 @@ mod tests {
         }
         assert_eq!(s.prefs_value(), before);
         assert_eq!(s.prefs.rev(), rev);
+    }
+
+    #[test]
+    fn recent_keeps_the_typed_document_name_for_its_card() {
+        let mut s = Session::new();
+        let add = |s: &mut Session, name: Value| {
+            s.execute("document.recent.add", json!({"settings":{"width":10,"height":10,"name":name}})).unwrap();
+            s.presets.recent_documents[0].name.clone()
+        };
+        assert_eq!(add(&mut s, json!(" Hero ")).as_deref(), Some("Hero"));
+        assert_eq!(add(&mut s, json!("  ")).as_deref(), Some("Hero"), "이름 없이 다시 만들면 기존 이름 유지");
+        assert_eq!(add(&mut s, json!("Banner")).as_deref(), Some("Banner"));
+        assert_eq!(s.presets.recent_documents.len(), 1);
+        assert!(s.presets.recent_documents[0].command_params().get("name").is_none(), "file.new 에는 전달하지 않음");
+        s.execute("document.presets.save", json!({"name":"Preset","settings":{"width":10,"height":10,"name":"Doc"}})).unwrap();
+        assert_eq!(s.presets.documents[0].settings.name, None);
     }
 
     #[test]

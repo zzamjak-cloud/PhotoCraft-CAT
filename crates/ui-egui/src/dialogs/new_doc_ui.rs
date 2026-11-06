@@ -367,6 +367,12 @@ pub fn document_settings(f: &Map<String, Value>) -> Value {
     let unit = get_s(f, "__unit", "px");
     settings["unit"] = json!(if UNITS.iter().any(|u| u.0 == unit) { unit.as_str() } else { "px" });
     settings["resolutionUnit"] = json!(if get_s(f, "__resUnit", "in") == "cm" { "cm" } else { "in" });
+    // 기본 이름은 문서를 구분해 주지 않으므로 카드 제목으로 남기지 않는다.
+    if settings.get("name").and_then(Value::as_str) == Some("Untitled-1")
+        && let Some(fields) = settings.as_object_mut()
+    {
+        fields.remove("name");
+    }
     settings
 }
 
@@ -398,13 +404,13 @@ impl Card {
         }
     }
 
-    /// The preset's name; a recent document takes the name of the built-in preset it matches.
-    fn title(&self) -> &'static str {
+    /// 프리셋 이름. 최근 문서는 입력한 이름, 없으면 일치하는 내장 프리셋 이름, 그것도 없으면 "Custom".
+    fn title(&self) -> &str {
         match self {
             Card::Builtin(p) => p.0,
-            Card::Recent(s) => {
+            Card::Recent(s) => s.name.as_deref().unwrap_or_else(|| {
                 CATEGORIES.iter().flat_map(|c| c.1.iter()).find(|p| (p.1, p.2, p.3) == (s.width, s.height, s.resolution)).map_or("Custom", |p| p.0)
-            }
+            }),
         }
     }
 
@@ -666,33 +672,47 @@ pub fn body(app: &mut crate::PhotocraftApp, ui: &mut egui::Ui, f: &mut Map<Strin
             let mut unit = get_s(f, "__unit", "px");
             // A typed unit (`210mm` while in pixels) converts at the new document's resolution.
             let units = widgets::FieldUnits { unit: widgets::unit_of_key(&unit), dpi: f64::from(ppi), ppi: 72.0 };
-            small_label(ui, tl!("Width"));
-            ui.horizontal(|ui| {
-                let mut w = shown_size(f, "width", 1920.0, &unit, ppi);
-                if widgets::value_field_units(ui, &mut w, 0.0..=300_000.0, 110.0, widgets::unit_decimals(&unit), units).accessible_name(tl!("Width")).changed()
-                {
-                    set_size(f, "width", w, &unit, ppi);
-                }
-                let opts: Vec<(String, &str)> = UNITS.iter().map(|u| (u.0.to_string(), u.1)).collect();
-                if widgets::dropdown(ui, "nd-unit", tl!("Units"), &mut unit, &opts, 120.0) {
-                    f.insert("__unit".into(), json!(unit));
-                    f.remove("__savedPreset");
-                }
+            // Width · Height · 단위를 한 줄에 둔다. 단위는 값 입력칸과 같은 높이에 오도록 라벨 자리를 비운다.
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    ui.set_width(66.0);
+                    small_label(ui, tl!("Width"));
+                    let mut w = shown_size(f, "width", 1920.0, &unit, ppi);
+                    if widgets::value_field_units(ui, &mut w, 0.0..=300_000.0, 66.0, widgets::unit_decimals(&unit), units)
+                        .accessible_name(tl!("Width"))
+                        .changed()
+                    {
+                        set_size(f, "width", w, &unit, ppi);
+                    }
+                });
+                ui.vertical(|ui| {
+                    ui.set_width(66.0);
+                    small_label(ui, tl!("Height"));
+                    let mut h = shown_size(f, "height", 1080.0, &unit, ppi);
+                    if widgets::value_field_units(ui, &mut h, 0.0..=300_000.0, 66.0, widgets::unit_decimals(&unit), units)
+                        .accessible_name(tl!("Height"))
+                        .changed()
+                    {
+                        set_size(f, "height", h, &unit, ppi);
+                    }
+                });
+                ui.vertical(|ui| {
+                    ui.set_width(102.0);
+                    small_label(ui, " ");
+                    let opts: Vec<(String, &str)> = UNITS.iter().map(|u| (u.0.to_string(), u.1)).collect();
+                    if widgets::dropdown(ui, "nd-unit", tl!("Units"), &mut unit, &opts, 102.0) {
+                        f.insert("__unit".into(), json!(unit));
+                        f.remove("__savedPreset");
+                    }
+                });
             });
-            small_label(ui, tl!("Height"));
             ui.horizontal(|ui| {
-                let mut h = shown_size(f, "height", 1080.0, &unit, ppi);
-                if widgets::value_field_units(ui, &mut h, 0.0..=300_000.0, 110.0, widgets::unit_decimals(&unit), units).accessible_name(tl!("Height")).changed()
-                {
-                    set_size(f, "height", h, &unit, ppi);
-                }
-                ui.add_space(6.0);
                 // Page orientation (≠ Type › Orientation → Hướng chữ).
                 small_label(ui, crate::i18n::tr_ctx(crate::i18n::current(), "document", "Orientation"));
                 let (w, h) = (get_f(f, "width", 1920.0), get_f(f, "height", 1080.0));
                 for (icon, portrait) in [("rectangle-vertical", true), ("rectangle-horizontal", false)] {
                     // Tooltip strings are looked up via `icons::button` → `tl!`; enum/state is aspect swap only.
-                    if icons::button(ui, icon, 24.0, (h > w) == portrait, if portrait { "Portrait" } else { "Landscape" }).clicked() {
+                    if icons::button_with_icon_size(ui, icon, 34.0, 26.0, (h > w) == portrait, if portrait { "Portrait" } else { "Landscape" }).clicked() {
                         // The pick also turns the presets (`oriented`), even when the size already has it.
                         f.insert("__orientation".into(), json!(if portrait { "portrait" } else { "landscape" }));
                         if (h > w) != portrait {

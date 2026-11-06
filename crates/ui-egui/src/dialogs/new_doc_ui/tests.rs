@@ -223,6 +223,7 @@ fn recent_category_lists_clipboard_then_created_documents_then_uncovered_default
         profile: None,
         unit: "px".into(),
         resolution_unit: "in".into(),
+        name: None,
     };
     let mut f = Map::new();
     set_clipboard(&mut f, 20, 30);
@@ -238,6 +239,18 @@ fn recent_category_lists_clipboard_then_created_documents_then_uncovered_default
         ]
     );
     assert!(holds(&f, &settings(20, 30, 72.0)) && !holds(&f, &settings(800, 600, 72.0)));
+    // 입력한 문서 이름이 "Custom" 과 내장 프리셋 이름을 대신한다.
+    for (w, h) in [(800, 600), (1920, 1080)] {
+        let named = DocumentSettings { name: Some("Hero banner".into()), ..settings(w, h, 72.0) };
+        assert_eq!(Card::Recent(named).title(), "Hero banner");
+    }
+    // 기본 이름은 제목으로 기록하지 않는다.
+    f.insert("width".into(), json!(10));
+    f.insert("height".into(), json!(10));
+    f.insert("name".into(), json!("Untitled-1"));
+    assert!(document_settings(&f).get("name").is_none());
+    f.insert("name".into(), json!("Hero banner"));
+    assert_eq!(document_settings(&f)["name"], "Hero banner");
 }
 
 #[test]
