@@ -4,8 +4,10 @@
 # 에셋 이름 규칙 (craft-update: <id>-<버전>-<os>-<arch>[-portable].<ext>, 체크섬은 SHA256SUMS.txt):
 #   photocraft-cat-X.Y.Z-macos-aarch64.dmg             설치용
 #   photocraft-cat-X.Y.Z-macos-aarch64.tar.gz          macOS 자체 업데이트용
-#   photocraft-cat-X.Y.Z-windows-x64-portable.zip      설치·Windows 자체 업데이트용
-#   photocraft-cat-X.Y.Z-windows-x64-portable.zip.sig  zip 의 Ed25519 서명 (64바이트, 앱의 win_update 가 확인)
+#   photocraft-cat-X.Y.Z-windows-x64-setup.exe         설치·Windows 자체 업데이트용
+#   photocraft-cat-X.Y.Z-windows-x64-setup.exe.sig     설치 프로그램의 Ed25519 서명 (64바이트, 앱의 win_update 가 확인)
+#   photocraft-cat-X.Y.Z-windows-x64-portable.zip      v0.19.10 이하 앱의 자체 업데이트 전용 (받은 뒤 설치형으로 전환)
+#   photocraft-cat-X.Y.Z-windows-x64-portable.zip.sig  zip 의 Ed25519 서명
 #   SHA256SUMS.txt
 #
 # Windows 자체 업데이트 서명 키: GitHub Secret UPDATE_SIGNING_KEY (Ed25519 PEM 개인키).
@@ -106,6 +108,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: release-windows
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
       - name: Build and package
         shell: pwsh
         env:
@@ -116,7 +120,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: dist/release/*.zip
+          path: |
+            dist/release/*.zip
+            dist/release/*-setup.exe
           if-no-files-found: error
 
   release:
@@ -140,7 +146,7 @@ jobs:
           key="$RUNNER_TEMP/update-key.pem"
           printf '%s\n' "$UPDATE_SIGNING_KEY" >"$key"
           openssl pkey -in "$key" -pubout -out "$RUNNER_TEMP/update-key.pub.pem"
-          for z in *-windows-x64-portable.zip; do
+          for z in *-windows-x64-portable.zip *-windows-x64-setup.exe; do
             openssl pkeyutl -sign -rawin -inkey "$key" -in "$z" -out "$z.sig"
             test "$(stat -c %s "$z.sig")" = 64
             openssl pkeyutl -verify -rawin -pubin -inkey "$RUNNER_TEMP/update-key.pub.pem" -in "$z" -sigfile "$z.sig"

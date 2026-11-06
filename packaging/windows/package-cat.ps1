@@ -2,7 +2,8 @@
 .SYNOPSIS
   PhotoCAT 포크의 Windows(x64) 포터블 zip 을 만든다. 코드 서명은 하지 않는다.
 
-    dist/release/photocraft-cat-<버전>-windows-x64-portable.zip
+    dist/release/photocraft-cat-<버전>-windows-x64-setup.exe     설치 프로그램 (Inno Setup 6 필요)
+    dist/release/photocraft-cat-<버전>-windows-x64-portable.zip  이전 버전 앱의 자체 업데이트용
       photocraft-cat.exe + portable.txt + 라이선스 문서 (zip 루트에 바로 위치)
 
   portable.txt 가 exe 옆에 있으면 설정·프리셋·복구 파일을 같은 폴더의 PhotoCraftData 에 둔다.
@@ -55,3 +56,16 @@ if (Test-Path $Zip) { Remove-Item -Force $Zip }
 # 폴더 자체가 아니라 내용물을 zip 루트에 넣는다 (자체 업데이트가 폴더 위에 그대로 풀어쓴다).
 Compress-Archive -Path (Join-Path $Stage '*') -DestinationPath $Zip
 Get-Item $Zip | Format-Table Name, Length
+
+# ---- 설치 프로그램 ----
+$InstallerStage = Join-Path $Root "target\windows-package-cat\$AppId-$Version-installer"
+if (Test-Path $InstallerStage) { Remove-Item -Recurse -Force $InstallerStage }
+New-Item -ItemType Directory -Force $InstallerStage | Out-Null
+# portable.txt 는 넣지 않는다: 설치본은 %APPDATA% 의 설정을 쓴다.
+Copy-Item (Join-Path $Stage '*') $InstallerStage -Recurse -Exclude 'portable.txt'
+Rename-Item (Join-Path $InstallerStage "$AppId.exe") 'PhotoCAT.exe'
+$Iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+if (-not (Test-Path $Iscc)) { $Iscc = (Get-Command iscc.exe -ErrorAction Stop).Source }
+& $Iscc "/DAppVersion=$Version" "/DStageDir=$InstallerStage" "/DOutputDir=$Dist" "/DRepoRoot=$Root" (Join-Path $PSScriptRoot 'photocat.iss')
+if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+Get-Item (Join-Path $Dist "$AppId-$Version-windows-x64-setup.exe") | Format-Table Name, Length

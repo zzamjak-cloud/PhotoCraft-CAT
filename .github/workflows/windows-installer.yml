@@ -1,0 +1,36 @@
+# Windows 설치 프로그램과 업데이트 도우미를 가짜 앱으로 실제 설치·업데이트·제거해 검증한다 (Rust 빌드 없음).
+name: Windows installer
+
+on:
+  push:
+    paths:
+      - packaging/windows/photocat.iss
+      - packaging/windows/package-cat.ps1
+      - packaging/windows/test-installer.ps1
+      - crates/ui-egui/src/win_update_helper.ps1
+      - .github/workflows/windows-installer.yml
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Package a stub app and test
+        shell: pwsh
+        run: |
+          $Stub = 'C:\Windows\System32\whoami.exe'
+          $Dir = 'target\x86_64-pc-windows-msvc\release'
+          New-Item -ItemType Directory -Force $Dir | Out-Null
+          Copy-Item $Stub "$Dir\photocraft.exe"
+          foreach ($v in '0.0.1', '0.0.2') { ./packaging/windows/package-cat.ps1 -Version $v -SkipBuild }
+          # Windows PowerShell 5.1 로 실행해 도우미가 실제 쓰이는 환경과 같게 한다.
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File packaging/windows/test-installer.ps1 `
+            -Setup1 (Resolve-Path 'dist/release/photocraft-cat-0.0.1-windows-x64-setup.exe') `
+            -Setup2 (Resolve-Path 'dist/release/photocraft-cat-0.0.2-windows-x64-setup.exe') `
+            -Helper (Resolve-Path 'crates/ui-egui/src/win_update_helper.ps1') -Stub $Stub
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

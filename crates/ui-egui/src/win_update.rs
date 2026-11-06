@@ -1,22 +1,32 @@
 //! Windows 자체 업데이트 (QuickFolder/Tauri 업데이터와 같은 방식).
 //!
 //! craft-update 는 Windows 에서 Authenticode 서명이 같은 파일만 설치하므로, 서명하지 않는 이 포크는
-//! Windows 에서 이 모듈을 쓴다. 릴리스 워크플로가 포터블 zip 을 Ed25519 개인키(GitHub Secret
-//! `UPDATE_SIGNING_KEY`)로 서명해 `<zip>.sig`(64바이트)를 함께 올리고, 앱은 내장 공개키
-//! [`PUBLIC_KEY`] 로 확인한 뒤에만 설치한다. 교체는 도우미 PowerShell 스크립트가 앱 종료 후
-//! 설치 폴더에 덮어 풀고 앱을 다시 띄운다.
+//! Windows 에서 이 모듈을 쓴다. 릴리스 워크플로가 설치 프로그램을 Ed25519 개인키(GitHub Secret
+//! `UPDATE_SIGNING_KEY`)로 서명해 `<setup>.sig`(64바이트)를 함께 올리고, 앱은 내장 공개키
+//! [`PUBLIC_KEY`] 로 확인한 뒤에만 실행한다. 도우미 PowerShell 스크립트가 앱 종료 후 설치
+//! 프로그램을 조용히 실행하고 앱을 다시 띄운다.
+//!
+//! 포터블 사본은 이 경로로 설치형으로 전환된다: 도우미가 `PhotoCraftData` 의 설정을 설치형 위치로
+//! 복사한 뒤 설치한다. 이전 버전 앱은 포터블 zip 만 받을 수 있으므로 릴리스에 zip 도 계속 올린다.
 
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, channel};
 
 /// 업데이트 서명 공개키 (Ed25519, 개인키는 GitHub Secret `UPDATE_SIGNING_KEY`).
 pub const PUBLIC_KEY: [u8; 32] = [
-    0xac, 0xf9, 0x09, 0xb0, 0x38, 0xbd, 0x0e, 0x7e, 0x22, 0x72, 0x13, 0x1c, 0xa6, 0x44, 0x33, 0x5a, 0x2b, 0x8a, 0xd4, 0xdb, 0xfe, 0x74, 0xb1, 0x9c, 0x91, 0xdb, 0x60,
-    0xde, 0x66, 0x7f, 0xb0, 0xa2,
+    0xac, 0xf9, 0x09, 0xb0, 0x38, 0xbd, 0x0e, 0x7e, 0x22, 0x72, 0x13, 0x1c, 0xa6, 0x44, 0x33, 0x5a, 0x2b, 0x8a, 0xd4, 0xdb, 0xfe, 0x74, 0xb1, 0x9c, 0x91, 0xdb,
+    0x60, 0xde, 0x66, 0x7f, 0xb0, 0xa2,
 ];
 
-/// 받는 zip 의 최대 크기.
-const MAX_ZIP_BYTES: u64 = 1 << 30;
+/// 받는 설치 프로그램의 최대 크기.
+const MAX_SETUP_BYTES: u64 = 1 << 30;
+
+/// 포터블 표시 파일 (`apps/photocraft/src/app_dirs.rs` 의 `PORTABLE_MARKERS` 와 같아야 한다).
+const PORTABLE_MARKERS: [&str; 2] = ["portable.txt", "PhotoCraft.portable"];
+
+/// 설치 프로그램이 까는 실행 파일 이름 (`packaging/windows/photocat.iss`).
+const INSTALLED_EXE: &str = "PhotoCAT.exe";
 
 const HELPER: &str = include_str!("win_update_helper.ps1");
 
@@ -29,14 +39,24 @@ fn repo() -> &'static str {
     crate::UPDATE_APP.repo
 }
 
-/// 버전 `v` 의 포터블 zip 주소.
-pub fn zip_url(v: &str) -> String {
-    format!("https://github.com/{}/releases/download/v{v}/{}-{v}-windows-x64-portable.zip", repo(), crate::UPDATE_APP.id)
+/// 버전 `v` 의 설치 프로그램 주소.
+pub fn setup_url(v: &str) -> String {
+    format!("https://github.com/{}/releases/download/v{v}/{}-{v}-windows-x64-setup.exe", repo(), crate::UPDATE_APP.id)
 }
 
 /// 서명 파일 주소.
 pub fn sig_url(v: &str) -> String {
-    format!("{}.sig", zip_url(v))
+    format!("{}.sig", setup_url(v))
+}
+
+/// `dir` 이 포터블 사본의 폴더인가.
+fn portable_at(dir: &Path) -> bool {
+    PORTABLE_MARKERS.iter().any(|m| dir.join(m).is_file())
+}
+
+/// 이 실행 파일이 아직 포터블 사본인가 (설치형 전환을 제안한다).
+pub fn is_portable() -> bool {
+    std::env::current_exe().ok().and_then(|exe| exe.parent().map(portable_at)).unwrap_or(false)
 }
 
 /// `data` 가 `key` 의 개인키로 서명되었는지 (Ed25519, 64바이트 서명).
@@ -44,7 +64,9 @@ pub fn verify(key: &[u8; 32], data: &[u8], sig: &[u8]) -> Result<(), String> {
     if sig.len() != 64 {
         return Err(format!("the update signature is {} bytes, expected 64", sig.len()));
     }
-    ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key).verify(data, sig).map_err(|_| "the update's signature does not match; it was not installed".to_string())
+    ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key)
+        .verify(data, sig)
+        .map_err(|_| "the update's signature does not match; it was not installed".to_string())
 }
 
 /// 업데이트 작업 폴더 (임시 폴더 아래).
@@ -82,50 +104,48 @@ fn download(agent: &ureq::Agent, url: &str, max: u64) -> Result<Vec<u8>, String>
     Ok(out)
 }
 
-/// 설치 폴더(실행 파일 폴더)와 실행 파일. 쓸 수 없는 폴더면 오류.
-fn install_target() -> Result<(PathBuf, PathBuf), String> {
-    let exe = std::env::current_exe().map_err(|e| format!("couldn't find this program ({e})"))?;
-    let dir = exe.parent().map(Path::to_path_buf).ok_or_else(|| "couldn't find the program's folder".to_string())?;
-    let probe = dir.join(".photocraft-update-probe");
-    std::fs::write(&probe, b"").map_err(|_| format!("{} is not writable; download the update and unzip it there instead", dir.display()))?;
-    let _ = std::fs::remove_file(&probe);
-    Ok((dir, exe))
+/// 도우미에 넘길 인자. 포터블 사본 `exe` 는 기본 설치 폴더 아래 `local_app_data` 로 전환한다.
+fn helper_args(pid: u32, setup: &Path, exe: &Path, log: &Path, local_app_data: Option<&Path>) -> Result<Vec<OsString>, String> {
+    let dir = exe.parent().ok_or_else(|| "couldn't find the program's folder".to_string())?;
+    let mut args: Vec<OsString> = vec!["-AppPid".into(), pid.to_string().into(), "-Setup".into(), setup.into(), "-Log".into(), log.into()];
+    if portable_at(dir) {
+        let local = local_app_data.ok_or_else(|| "couldn't find the folder for installed programs".to_string())?;
+        let install = local.join("Programs").join(crate::UPDATE_APP.name);
+        args.extend(["-Exe".into(), install.join(INSTALLED_EXE).into(), "-InstallDir".into(), install.into()]);
+        args.extend(["-PortableDir".into(), dir.into(), "-OldExe".into(), exe.into()]);
+    } else {
+        args.extend(["-Exe".into(), exe.into()]);
+    }
+    Ok(args)
 }
 
 /// 내려받고 확인하고 도우미를 띄운다. 성공하면 앱이 곧 종료되어야 한다.
 fn prepare(version: &str) -> Result<(), String> {
-    let (dest, exe) = install_target()?;
+    let exe = std::env::current_exe().map_err(|e| format!("couldn't find this program ({e})"))?;
     let agent = agent();
     let sig = download(&agent, &sig_url(version), 1024)?;
-    let zip = download(&agent, &zip_url(version), MAX_ZIP_BYTES)?;
-    verify(&PUBLIC_KEY, &zip, &sig)?;
+    let setup = download(&agent, &setup_url(version), MAX_SETUP_BYTES)?;
+    verify(&PUBLIC_KEY, &setup, &sig)?;
     let dir = work_dir();
     std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let zip_path = dir.join(format!("{}-{version}.zip", crate::UPDATE_APP.id));
-    std::fs::write(&zip_path, &zip).map_err(|e| format!("{}: {e}", zip_path.display()))?;
+    let setup_path = dir.join(format!("{}-{version}-setup.exe", crate::UPDATE_APP.id));
+    std::fs::write(&setup_path, &setup).map_err(|e| format!("{}: {e}", setup_path.display()))?;
     let script = dir.join("update.ps1");
     std::fs::write(&script, HELPER).map_err(|e| format!("{}: {e}", script.display()))?;
-    launch_helper(&script, &zip_path, &dest, &exe)
+    let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    let args = helper_args(std::process::id(), &setup_path, &exe, &failure_log(), local.as_deref())?;
+    launch_helper(&script, &args)
 }
 
 #[cfg(windows)]
-fn launch_helper(script: &Path, zip: &Path, dest: &Path, exe: &Path) -> Result<(), String> {
+fn launch_helper(script: &Path, args: &[OsString]) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW: 앱이 끝나도 살아 있고 창이 없다.
     const FLAGS: u32 = 0x0000_0008 | 0x0000_0200 | 0x0800_0000;
     std::process::Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File"])
         .arg(script)
-        .arg("-AppPid")
-        .arg(std::process::id().to_string())
-        .arg("-Zip")
-        .arg(zip)
-        .arg("-Dest")
-        .arg(dest)
-        .arg("-Exe")
-        .arg(exe)
-        .arg("-Log")
-        .arg(failure_log())
+        .args(args)
         .creation_flags(FLAGS)
         .spawn()
         .map(drop)
@@ -133,7 +153,7 @@ fn launch_helper(script: &Path, zip: &Path, dest: &Path, exe: &Path) -> Result<(
 }
 
 #[cfg(not(windows))]
-fn launch_helper(_script: &Path, _zip: &Path, _dest: &Path, _exe: &Path) -> Result<(), String> {
+fn launch_helper(_script: &Path, _args: &[OsString]) -> Result<(), String> {
     Err("this update path is for Windows".into())
 }
 
@@ -219,6 +239,9 @@ impl WinUpdater {
                 tl!("{app} {new} is available. You have {current}."),
                 &[("app", crate::UPDATE_APP.name), ("new", &version), ("current", photocraft_engine::build_info::VERSION)],
             ));
+            if is_portable() {
+                ui.label(tl!("This update switches to the installed version. Your settings are kept."));
+            }
             if working {
                 ui.horizontal(|ui| {
                     ui.spinner();
@@ -280,17 +303,56 @@ mod tests {
     #[test]
     fn asset_urls_follow_the_release_names() {
         assert_eq!(
-            zip_url("0.19.3"),
-            "https://github.com/zzamjak-cloud/PhotoCraft-CAT/releases/download/v0.19.3/photocraft-cat-0.19.3-windows-x64-portable.zip"
+            setup_url("0.19.3"),
+            "https://github.com/zzamjak-cloud/PhotoCraft-CAT/releases/download/v0.19.3/photocraft-cat-0.19.3-windows-x64-setup.exe"
         );
-        assert!(sig_url("0.19.3").ends_with("-windows-x64-portable.zip.sig"));
+        assert!(sig_url("0.19.3").ends_with("-windows-x64-setup.exe.sig"));
     }
 
     #[test]
     fn helper_takes_the_arguments_we_pass() {
-        for p in ["$AppPid", "$Zip", "$Dest", "$Exe", "$Log"] {
+        for p in ["$AppPid", "$Setup", "$Exe", "$Log", "$PortableDir", "$InstallDir", "$OldExe"] {
             assert!(HELPER.contains(p), "{p}");
         }
+    }
+
+    /// Windows PowerShell 5.1 은 BOM 없는 스크립트를 시스템 코드 페이지로 읽는다. CP949 에서는 UTF-8
+    /// 한글 주석이 줄바꿈을 삼켜 다음 줄까지 주석이 될 수 있어 도우미는 ASCII 만 쓴다.
+    #[test]
+    fn helper_is_ascii() {
+        assert!(HELPER.is_ascii());
+    }
+
+    fn arg_after(args: &[OsString], name: &str) -> Option<OsString> {
+        args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned()
+    }
+
+    #[test]
+    fn an_installed_copy_updates_in_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join(INSTALLED_EXE);
+        let args = helper_args(7, Path::new("s.exe"), &exe, Path::new("l.txt"), None).unwrap();
+        assert_eq!(arg_after(&args, "-Exe"), Some(exe.into()));
+        for name in ["-PortableDir", "-InstallDir", "-OldExe"] {
+            assert_eq!(arg_after(&args, name), None, "{name}");
+        }
+    }
+
+    #[test]
+    fn a_portable_copy_converts_to_the_default_install_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("portable.txt"), b"").unwrap();
+        assert!(portable_at(dir.path()));
+        let exe = dir.path().join("photocraft-cat.exe");
+        let local = Path::new("local");
+        let args = helper_args(7, Path::new("s.exe"), &exe, Path::new("l.txt"), Some(local)).unwrap();
+        let install = local.join("Programs").join("PhotoCAT");
+        assert_eq!(arg_after(&args, "-InstallDir"), Some(install.clone().into()));
+        assert_eq!(arg_after(&args, "-Exe"), Some(install.join("PhotoCAT.exe").into()));
+        assert_eq!(arg_after(&args, "-PortableDir"), Some(dir.path().into()));
+        assert_eq!(arg_after(&args, "-OldExe"), Some(exe.into()));
+        // 설치 폴더를 알 수 없으면 조용히 다른 곳에 깔지 않고 오류로 알린다.
+        assert!(helper_args(7, Path::new("s.exe"), &dir.path().join("a.exe"), Path::new("l.txt"), None).is_err());
     }
 
     #[test]

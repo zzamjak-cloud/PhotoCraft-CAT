@@ -11,7 +11,7 @@ PhotoCAT is an unofficial, non-commercial personal fork of [PhotoCraft](https://
 Get the macOS (Apple Silicon) and Windows (x64) builds from [Releases](https://github.com/zzamjak-cloud/PhotoCraft-CAT/releases). The builds are not code-signed:
 
 - macOS: right-click the app and choose Open, or run `xattr -dr com.apple.quarantine /Applications/PhotoCAT.app`.
-- Windows: on the SmartScreen prompt choose More info, then Run anyway.
+- Windows: run `photocraft-cat-<version>-windows-x64-setup.exe`. On the SmartScreen prompt choose More info, then Run anyway. No administrator rights are needed. The portable zip exists only so older copies can update themselves.
 
 The sections below describe the PhotoCraft editor this fork is based on.
 

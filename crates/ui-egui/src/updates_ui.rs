@@ -87,6 +87,13 @@ pub(crate) fn tick(app: &mut PhotocraftApp, ctx: &egui::Context) {
             app.ui.status = crate::i18n::fmt(tl!("The last update was not installed: {reason}"), &[("reason", &why)]);
             app.ui.status_error = true;
         }
+        // zip 업데이트로 이 버전에 온 포터블 사본: 같은 버전의 설치형으로 전환을 제안한다.
+        #[cfg(not(target_arch = "wasm32"))]
+        if crate::win_update::active() && crate::win_update::is_portable() {
+            let version = photocraft_engine::build_info::VERSION;
+            app.updates_rt.win.offer(version, photocraft_engine::updates_cmds::RELEASES);
+            app.ui.updates_open = true;
+        }
         if app.session.prefs().general.automatically_check_updates && matches!(app.session.updates.status, Status::Idle) {
             let _ = app.run("help.checkForUpdates", serde_json::json!({}));
         }
