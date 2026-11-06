@@ -49,6 +49,8 @@ Assert-True (Test-Path $Log) 'a failed install writes the reason'
 Assert-True (Test-Path (Join-Path $Portable 'photocraft-cat.exe')) 'a failed install keeps the portable exe'
 Assert-True (Test-Path (Join-Path $Portable 'portable.txt')) 'a failed install keeps portable mode'
 Assert-True (-not (Test-Path (Join-Path $Settings '.migrated-from-portable'))) 'a failed install can be retried'
+Assert-True ((Get-Content (Join-Path $Settings 'prefs.json')) -eq 'older install') 'a failed install restores the older settings'
+Assert-True (@(Get-ChildItem (Split-Path -Parent $Settings) -Filter 'Photocraft.before-install-*').Count -eq 0) 'a failed install leaves no backup'
 Remove-Item -Force $Log
 
 # Portable to installed.
@@ -63,7 +65,7 @@ Assert-True ((Get-Content (Join-Path $Settings 'cat\settings.json')) -eq 'portab
 Assert-True ((Get-Content (Join-Path $Recovery 'a.bin')) -eq 'autosave') 'autosaves moved'
 Assert-True (-not (Test-Path (Join-Path $Settings 'Recovery'))) 'autosaves are not in the roaming folder'
 $Backups = @(Get-ChildItem (Split-Path -Parent $Settings) -Filter 'Photocraft.before-install-*')
-Assert-True ($Backups.Count -ge 1 -and (Get-Content (Join-Path $Backups[-1].FullName 'prefs.json')) -eq 'older install') 'older settings are backed up'
+Assert-True ($Backups.Count -eq 1 -and (Get-Content (Join-Path $Backups[-1].FullName 'prefs.json')) -eq 'older install') 'older settings are backed up'
 Assert-True (-not (Test-Path (Join-Path $Portable 'photocraft-cat.exe'))) 'the portable exe is gone'
 Assert-True (-not (Test-Path (Join-Path $Portable 'portable.txt'))) 'the portable marker is gone'
 Assert-True (Test-Path (Join-Path $Portable 'PhotoCraftData\prefs.json')) 'portable data stays as a backup'
