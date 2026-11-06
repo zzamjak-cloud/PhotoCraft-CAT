@@ -147,6 +147,15 @@ pub(super) fn merge_layers(s: &mut Session) -> Result<Value> {
         }
         return s.execute("layer.mergeDown", json!({}));
     }
+    // 셰이프 레이어끼리는 래스터화하지 않고 패스를 합친다 (Photoshop Merge Shapes).
+    if let Some(d) = s.active() {
+        let ids = top_level(&d.doc, &sel);
+        let (visible, hidden): (Vec<LayerId>, Vec<LayerId>) = ids.iter().copied().partition(|id| d.doc.layer(*id).is_some_and(|l| l.visible));
+        if !visible.is_empty() && crate::vector_cmds::can_merge_as_shapes(&d.doc, &ids) {
+            let mid = crate::vector_cmds::merge_shapes(s, &visible, &hidden, "Merge Layers")?;
+            return Ok(json!({ "layer": mid.0 }));
+        }
+    }
     let mid = s.edit("Merge Layers", |doc, active| {
         let ids = top_level(doc, &sel);
         let lowest_id = *ids.first().ok_or_else(|| EngineError::Other("Merge Layers needs two or more layers".into()))?;

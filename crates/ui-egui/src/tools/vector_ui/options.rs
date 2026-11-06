@@ -152,6 +152,77 @@ pub(super) fn corner_radii_patch(radii: [f64; 4], corner: usize, radius: f32) ->
     json!({"radii": next})
 }
 
+/// 코너 필드 앞의 모서리 글리프: 해당 모서리만 둥근 선. `corner` 는 radii 순서(TL, TR, BR, BL).
+fn corner_glyph(ui: &mut egui::Ui, corner: usize, size: f32, tooltip: &str) {
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
+    response.on_hover_text(tooltip);
+    let rect = rect.shrink(1.5);
+    let (h, v) = match corner {
+        0 => (rect.right_top(), rect.left_bottom()),
+        1 => (rect.left_top(), rect.right_bottom()),
+        2 => (rect.left_bottom(), rect.right_top()),
+        _ => (rect.right_bottom(), rect.left_top()),
+    };
+    // 두 끝점을 모서리 쪽으로 잇는 2차 곡선을 선분으로 근사한다.
+    let apex = egui::pos2(v.x, h.y);
+    let points = (0..=8)
+        .map(|i| {
+            let t = i as f32 / 8.0;
+            let u = 1.0 - t;
+            egui::pos2(u * u * h.x + 2.0 * u * t * apex.x + t * t * v.x, u * u * h.y + 2.0 * u * t * apex.y + t * t * v.y)
+        })
+        .collect();
+    ui.painter().add(egui::Shape::line(points, egui::Stroke::new(1.2, Tokens::get(ui.ctx()).text_dim)));
+}
+
+/// 링크된 모서리 반경 입력 하나를 전체 값으로 푼 `shape.edit` 패치, 또는 해당 모서리만 바꾼 패치.
+pub(super) fn linked_radii_patch(radii: [f64; 4], corner: usize, radius: f32, linked: bool) -> Value {
+    if linked { json!({"radii": f64::from(radius.max(0.0))}) } else { corner_radii_patch(radii, corner, radius) }
+}
+
+/// 직사각형 Properties 의 모서리 반경: Photoshop 처럼 2×2 그리드와 가운데 링크 토글.
+/// 링크 상태는 레이어별 임시 값이고, 값이 서로 다르면(캔버스 코너 핸들 편집 등) 항상 해제로 표시한다.
+pub(super) fn corner_radii_grid(ui: &mut egui::Ui, radii: [f64; 4], layer: u64, key: &dyn Fn(&str) -> String) -> Option<Value> {
+    const GLYPH: f32 = 14.0;
+    const LINK_W: f32 = 20.0;
+    const GAP: f32 = 4.0;
+    let link_key = egui::Id::unique(("corner-radii-link", layer));
+    let uniform = radii.iter().all(|r| *r == radii[0]);
+    let linked = uniform && ui.data(|d| d.get_temp::<bool>(link_key)).unwrap_or(true);
+    let field_w = ((ui.available_width() - 2.0 * GLYPH - LINK_W - 4.0 * GAP) / 2.0).max(44.0);
+    let mut edit = None;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = GAP;
+        let column = |ui: &mut egui::Ui, corners: [(usize, &str); 2], edit: &mut Option<Value>| {
+            ui.vertical(|ui| {
+                for (index, name) in corners {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = GAP;
+                        corner_glyph(ui, index, GLYPH, name);
+                        let mut radius = radii[index] as f32;
+                        if crate::widgets::value_field_named(ui, name, &mut radius, 0.0..=100000.0, "px", field_w).changed() {
+                            let mut patch = linked_radii_patch(radii, index, radius, linked);
+                            let field = if linked { "radius-all".to_string() } else { format!("radius-{index}") };
+                            patch["coalesce"] = json!(key(&field));
+                            *edit = Some(patch);
+                        }
+                    });
+                }
+            });
+        };
+        column(ui, [(0, tl!("Top Left")), (3, tl!("Bottom Left"))], &mut edit);
+        if crate::icons::button(ui, if linked { "link" } else { "unlink" }, LINK_W, linked, tl!("Link corner radius values")).clicked() {
+            ui.data_mut(|d| d.insert_temp(link_key, !linked));
+            // 값이 다른 채로 링크를 켜면 왼쪽 위 값으로 맞춘다.
+            if !linked && !uniform {
+                edit = Some(json!({"radii": radii[0], "coalesce": key("radius-link")}));
+            }
+        }
+        column(ui, [(1, tl!("Top Right")), (2, tl!("Bottom Right"))], &mut edit);
+    });
+    edit
+}
+
 /// Follow the existing brush/mask continuous-edit convention: one history state per press or
 /// keyboard edit, with every value tick of a held-pointer gesture sharing its key.
 pub(crate) fn paint_gesture(ui: &egui::Ui, key: egui::Id) -> u64 {
@@ -290,24 +361,8 @@ pub fn shape_properties(app: &mut PhotocraftApp, ui: &mut egui::Ui, id: photocra
         }
         ui.vertical(|ui| match live {
             photocraft_doc::vector::LiveShape::Rect { radii, .. } => {
-                // Keep the uniform workflow available after independent corner edits too.
-                ui.horizontal(|ui| {
-                    let mut all = radii[0] as f32;
-                    if num(ui, tl!("Corner radius"), &mut all, 0.0..=100000.0, "px") {
-                        edit = Some(json!({"radii": all, "coalesce": key("radius-all")}));
-                    }
-                });
-                // Separate rows also fit the narrow Properties dock. The labels use the
-                // localized corner names, rather than untranslated abbreviations.
-                for (index, label) in [(0, tl!("Top Left")), (1, tl!("Top Right")), (3, tl!("Bottom Left")), (2, tl!("Bottom Right"))] {
-                    ui.horizontal(|ui| {
-                        let mut radius = radii[index] as f32;
-                        if num(ui, label, &mut radius, 0.0..=100000.0, "px") {
-                            let mut patch = corner_radii_patch(*radii, index, radius);
-                            patch["coalesce"] = json!(key(&format!("radius-{index}")));
-                            edit = Some(patch);
-                        }
-                    });
+                if let Some(patch) = corner_radii_grid(ui, *radii, id.0, &key) {
+                    edit = Some(patch);
                 }
             }
             photocraft_doc::vector::LiveShape::Polygon { sides, star_ratio, corner_radius, .. } => {

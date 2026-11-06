@@ -27,8 +27,8 @@ pub(crate) fn layer_edges_rect(app: &PhotocraftApp, idx: usize) -> Option<photoc
 /// controls are an Extra, hidden and inert until Extras comes back, while Show Transform Controls
 /// keeps its setting.
 pub(super) fn transform_controls_layers(app: &PhotocraftApp) -> Vec<&photocraft_doc::Layer> {
-    if app.ui.tool != Tool::Move
-        || !app.ui.tool_options.move_show_transform
+    let shape_tool = crate::vector_ui::is_shape_tool(app.ui.tool);
+    if !(shape_tool || (app.ui.tool == Tool::Move && app.ui.tool_options.move_show_transform))
         || !app.ui.view.extras
         || app.ui.transform.is_some()
         || app.drag.is_some()
@@ -37,7 +37,14 @@ pub(super) fn transform_controls_layers(app: &PhotocraftApp) -> Vec<&photocraft_
         return Vec::new();
     }
     let Some(st) = app.session.active() else { return Vec::new() };
-    st.selected_layers().into_iter().filter_map(|id| st.doc.layer(id)).filter(|l| !crate::doc_props_ui::is_background(&st.doc, l)).collect()
+    let layers: Vec<_> =
+        st.selected_layers().into_iter().filter_map(|id| st.doc.layer(id)).filter(|l| !crate::doc_props_ui::is_background(&st.doc, l)).collect();
+    // 셰이프 도구는 셰이프 레이어만 선택됐을 때 프레임을 보인다. 눌러서 시작하는 변형은 선택된 레이어
+    // 전체에 걸리므로, 다른 레이어가 섞이면 프레임 없이 그리기 도구로만 동작한다.
+    if shape_tool && !layers.iter().all(|l| matches!(l.content, LayerContent::Shape(_))) {
+        return Vec::new();
+    }
+    layers
 }
 
 /// Move tool › Show Transform Controls: the boxes Free Transform would open on the selected
@@ -100,15 +107,27 @@ pub(super) fn transform_controls_turn(r: Rect, p: Pos2) -> Option<Vec2> {
 
 /// A visible handle starts scaling; the narrow band just outside the box starts rotation.
 /// The interior stays the normal Move-tool drag target.
+#[cfg(test)]
 pub(super) fn transform_controls_hit(r: Rect, p: Pos2) -> bool {
     transform_controls_cursor(r, p).is_some()
+}
+
+/// 현재 도구에서 `p` 가 잡는 컨트롤의 커서. 셰이프 도구는 핸들만 잡는다: 회전 띠까지 잡으면
+/// 기존 셰이프 바로 옆에서 새 셰이프를 그리는 드래그가 회전으로 바뀐다.
+pub(super) fn active_controls_cursor(app: &PhotocraftApp, r: Rect, p: Pos2) -> Option<egui::CursorIcon> {
+    transform_controls_cursor(r, p).filter(|c| app.ui.tool == Tool::Move || *c != egui::CursorIcon::None)
+}
+
+/// 이 도구의 누름이 변형 컨트롤을 시작할 수 있는지.
+pub(super) fn tool_presses_controls(tool: Tool) -> bool {
+    tool == Tool::Move || crate::vector_ui::is_shape_tool(tool)
 }
 
 /// Enter the existing Free Transform session when a Move-tool transform control is pressed: on
 /// every selected layer, as the frame shows them (#6501).
 pub(super) fn begin_transform_controls_at(app: &mut PhotocraftApp, ctx: &egui::Context, xf: &ViewXform, p: Pos2) -> bool {
     let Some(r) = transform_controls_rect(app, xf) else { return false };
-    if !transform_controls_hit(r, p) {
+    if active_controls_cursor(app, r, p).is_none() {
         return false;
     }
     match crate::transform_tool::begin(app, ctx) {

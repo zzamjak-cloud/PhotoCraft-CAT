@@ -284,6 +284,14 @@ fn begin(app: &mut PhotocraftApp, p: [f64; 2], mods: egui::Modifiers) {
         // Explicit Distort fits corners to guides; preserve free placement near layer edges.
         targets = targets.filtered(|k| k == SnapKind::Guide);
     }
+    if gesture == Gesture::Point
+        && app.ui.transform.is_none()
+        && matches!(tool, Tool::RectMarquee | Tool::EllipseMarquee | Tool::SingleRowMarquee | Tool::SingleColumnMarquee)
+    {
+        // 마퀴는 원하는 규격대로 그리는 도구라 다른 레이어의 오브젝트에는 붙지 않는다.
+        // 가이드·그리드·문서 경계 스냅은 그대로 둔다.
+        targets = targets.filtered(|k| !matches!(k, SnapKind::LayerEdge | SnapKind::LayerCenter));
+    }
     if gesture == Gesture::Guide {
         // A guide never snaps to itself (or other guides).
         targets = targets.filtered(|k| k != SnapKind::Guide);

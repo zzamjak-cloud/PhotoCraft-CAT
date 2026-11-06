@@ -774,6 +774,22 @@ fn build() -> Vec<CommandSpec> {
         )),
         cmd!("layer.mergeDown", "Merge Down", ["Layer"], None, r##"{"layer":id?}"##, has_layer, |s, p| {
             let id = layer_param(s, p)?;
+            // 아래 레이어도 셰이프면 래스터화하지 않고 패스를 합친다 (Photoshop Merge Shapes).
+            let shape_pair = s.active().and_then(|d| {
+                let path = d.doc.path_of(id)?;
+                let (&idx, parent) = path.split_last()?;
+                let mut below = parent.to_vec();
+                below.push(idx.checked_sub(1)?);
+                let lower = d.doc.layer_at(&below)?;
+                let upper = d.doc.layer(id)?;
+                let pair = [lower.id, id];
+                let (visible, hidden): (Vec<LayerId>, Vec<LayerId>) = pair.iter().copied().partition(|l| if *l == id { upper.visible } else { lower.visible });
+                (!visible.is_empty() && crate::vector_cmds::can_merge_as_shapes(&d.doc, &pair)).then_some((visible, hidden))
+            });
+            if let Some((visible, hidden)) = shape_pair {
+                crate::vector_cmds::merge_shapes(s, &visible, &hidden, "Merge Down")?;
+                return Ok(Value::Null);
+            }
             s.edit("Merge Down", |doc, active| {
                 let path = doc.path_of(id).ok_or(EngineError::NoLayer(id))?;
                 let Some((&idx, parent)) = path.split_last() else { return Err(EngineError::NoLayer(id)) };

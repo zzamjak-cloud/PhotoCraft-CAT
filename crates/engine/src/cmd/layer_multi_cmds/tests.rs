@@ -1488,3 +1488,88 @@ fn translate_can_carry_the_selection_in_the_same_step() {
         assert_eq!(state(&s), before, "dx {dx}: and changes nothing");
     }
 }
+
+#[cfg(test)]
+mod merge_shapes {
+    use super::*;
+
+    fn shape(s: &mut Session, rect: [i32; 4]) -> LayerId {
+        LayerId(s.execute("shape.create", json!({"rect": rect})).unwrap()["layer"].as_u64().unwrap())
+    }
+
+    fn doc_with_two_shapes() -> (Session, LayerId, LayerId) {
+        let mut s = Session::new();
+        s.execute("file.new", json!({"width": 100, "height": 100})).unwrap();
+        let a = shape(&mut s, [5, 5, 20, 20]);
+        let b = shape(&mut s, [50, 50, 20, 20]);
+        (s, a, b)
+    }
+
+    fn subpath_count(s: &Session, id: LayerId) -> usize {
+        match &s.active().unwrap().doc.layer(id).unwrap().content {
+            LayerContent::Shape(sh) => sh.path.subpaths.len(),
+            other => panic!("셰이프가 유지되어야 한다: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn merge_layers_keeps_shape_in_top_layer_with_one_undo() {
+        let (mut s, a, b) = doc_with_two_shapes();
+        let before = s.active().unwrap().doc.layers.len();
+        set_selection(&mut s, vec![a, b], Some(b), Some(a)).unwrap();
+        let res = s.execute("layer.mergeLayers", json!({})).unwrap();
+        assert_eq!(res["layer"].as_u64(), Some(b.0));
+        assert_eq!(subpath_count(&s, b), 2);
+        assert!(s.active().unwrap().doc.layer(a).is_none());
+        assert_eq!(s.active().unwrap().doc.layers.len(), before - 1);
+        s.execute("edit.undo", json!({})).unwrap();
+        assert_eq!(subpath_count(&s, a), 1);
+        assert_eq!(subpath_count(&s, b), 1);
+    }
+
+    #[test]
+    fn merge_down_keeps_shape() {
+        let (mut s, a, b) = doc_with_two_shapes();
+        s.execute("layer.mergeDown", json!({"layer": b.0})).unwrap();
+        assert_eq!(subpath_count(&s, b), 2);
+        assert!(s.active().unwrap().doc.layer(a).is_none());
+    }
+
+    #[test]
+    fn hidden_selected_shape_is_discarded() {
+        let (mut s, a, b) = doc_with_two_shapes();
+        let c = shape(&mut s, [70, 5, 20, 20]);
+        s.execute("layer.setProps", json!({"layer": b.0, "visible": false})).unwrap();
+        set_selection(&mut s, vec![a, b, c], Some(c), Some(a)).unwrap();
+        s.execute("layer.mergeLayers", json!({})).unwrap();
+        assert_eq!(subpath_count(&s, c), 2);
+        assert!(s.active().unwrap().doc.layer(b).is_none());
+    }
+
+    #[test]
+    fn lone_visible_shape_survives_a_merge_with_a_hidden_one() {
+        for merge_down in [false, true] {
+            let (mut s, a, b) = doc_with_two_shapes();
+            s.execute("layer.setProps", json!({"layer": a.0, "visible": false})).unwrap();
+            if merge_down {
+                s.execute("layer.mergeDown", json!({"layer": b.0})).unwrap();
+            } else {
+                set_selection(&mut s, vec![a, b], Some(b), Some(a)).unwrap();
+                s.execute("layer.mergeLayers", json!({})).unwrap();
+            }
+            assert_eq!(subpath_count(&s, b), 1);
+            assert!(s.active().unwrap().doc.layer(a).is_none());
+            let LayerContent::Shape(sh) = &s.active().unwrap().doc.layer(b).unwrap().content else { panic!("셰이프 유지") };
+            assert!(sh.live.is_some(), "라이브 셰이프 유지");
+        }
+    }
+
+    #[test]
+    fn shape_with_raster_still_rasterizes() {
+        let (mut s, a, _) = doc_with_two_shapes();
+        let r = LayerId(s.execute("layer.new.layer", json!({"name": "r"})).unwrap()["layer"].as_u64().unwrap());
+        set_selection(&mut s, vec![a, r], Some(r), Some(a)).unwrap();
+        let m = LayerId(s.execute("layer.mergeLayers", json!({})).unwrap()["layer"].as_u64().unwrap());
+        assert!(matches!(s.active().unwrap().doc.layer(m).unwrap().content, LayerContent::Raster(_)));
+    }
+}

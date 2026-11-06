@@ -1481,3 +1481,56 @@ fn path_rows_dragged_onto_the_trash_are_deleted() {
     let doc = &h.state().session.active().unwrap().doc;
     assert_eq!((doc.layers.len(), doc.paths.len()), (layers, 1), "nothing is deleted");
 }
+
+/// 코너 반경 그리드: 링크 상태면 입력 하나가 네 모서리 모두에, 해제면 그 모서리에만 적용된다.
+#[test]
+fn linked_corner_radius_applies_to_all_corners() {
+    let mut app = app();
+    app.run("file.new", json!({"width": 200, "height": 200})).unwrap();
+    let id = app.run("shape.create", json!({"kind": "roundedRect", "rect": [10, 10, 150, 100], "radii": 8})).unwrap()["layer"].as_u64().unwrap();
+    let radii = |app: &PhotocraftApp| match &app.session.active().unwrap().doc.layer(photocraft_doc::LayerId(id)).unwrap().content {
+        LayerContent::Shape(sh) => match &sh.live {
+            Some(photocraft_doc::vector::LiveShape::Rect { radii, .. }) => *radii,
+            _ => panic!("rectangle must remain a live shape"),
+        },
+        _ => panic!("expected shape layer"),
+    };
+    let mut patch = linked_radii_patch(radii(&app), 2, 20.0, true);
+    patch["layer"] = json!(id);
+    app.run("shape.edit", patch).unwrap();
+    assert_eq!(radii(&app), [20.0; 4]);
+    let mut patch = linked_radii_patch(radii(&app), 2, 30.0, false);
+    patch["layer"] = json!(id);
+    app.run("shape.edit", patch).unwrap();
+    assert_eq!(radii(&app), [20.0, 20.0, 30.0, 20.0]);
+}
+
+/// 그리드 필드는 모서리 이름으로 접근 가능하고, 값이 다른 채로 링크를 켜면 왼쪽 위 값으로 맞춘다.
+#[test]
+fn corner_radii_grid_names_its_fields_and_link_on_unifies_values() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let state: ([f64; 4], Option<Value>) = ([1.0, 2.0, 3.0, 4.0], None);
+    let mut h = Harness::builder().with_size(vec2(260.0, 90.0)).build_ui_state(
+        |ui, state: &mut ([f64; 4], Option<Value>)| {
+            if let Some(patch) = corner_radii_grid(ui, state.0, 1, &|k| k.to_string()) {
+                state.1 = Some(patch);
+            }
+        },
+        state,
+    );
+    h.run();
+    for name in ["Top Left", "Top Right", "Bottom Left", "Bottom Right"] {
+        assert!(h.query_by_label_contains(name).is_some(), "{name} 필드");
+    }
+    if let Ok(out) = std::env::var("CAT_SNAPSHOT_DIR") {
+        h.render().unwrap().save(std::path::Path::new(&out).join("radii-unlinked.png")).unwrap();
+    }
+    h.get_by_label_contains("Link corner radius values").click();
+    h.run();
+    assert_eq!(h.state().1.as_ref().map(|p| p["radii"].clone()), Some(json!(1.0)));
+    h.state_mut().0 = [1.0; 4];
+    h.run();
+    if let Ok(out) = std::env::var("CAT_SNAPSHOT_DIR") {
+        h.render().unwrap().save(std::path::Path::new(&out).join("radii-linked.png")).unwrap();
+    }
+}

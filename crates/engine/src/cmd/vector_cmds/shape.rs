@@ -434,7 +434,7 @@ pub(super) fn shape_rasterize(s: &mut Session, p: &Value) -> Result<Value> {
 pub(super) fn merge_components(s: &mut Session, p: &Value) -> Result<Value> {
     let tol = f64p(p, "tolerance").unwrap_or(0.1).clamp(0.05, 10.0);
     if let Some(ids) = combine_targets(s, p, &["layer"])? {
-        return merge_shape_layers(s, &ids, None, "Merge Shape Components", Some(tol));
+        return merge_shape_layers(s, &ids, &[], None, "Merge Shape Components", Some(tol));
     }
     let id = layer_id(s, p)?;
     with_shape(s, id, "Merge Shape Components", |sh, _| bake_components(sh, tol))?;
@@ -493,10 +493,10 @@ fn combine_targets(s: &Session, p: &Value, narrow: &[&str]) -> Result<Option<Vec
 /// layers above takes `op` (front shapes subtract, intersect… in stacking order), or, with no
 /// `op` (Merge Shape Components), keeps its own with each layer's first component combined, and
 /// the result is then baked with tolerance `bake`. The other layers are removed; one history step.
-fn merge_shape_layers(s: &mut Session, ids: &[LayerId], op: Option<PathOp>, label: &str, bake: Option<f64>) -> Result<Value> {
+fn merge_shape_layers(s: &mut Session, ids: &[LayerId], discard: &[LayerId], op: Option<PathOp>, label: &str, bake: Option<f64>) -> Result<Value> {
     let (&keep, _) = ids.split_last().ok_or_else(|| EngineError::Other("Combine Shapes needs two or more shape layers".into()))?;
     if let Some(st) = s.active() {
-        for id in ids {
+        for id in ids.iter().chain(discard) {
             let locks = st.doc.effective_locks(*id);
             if locks.all || locks.pixels {
                 return Err(EngineError::Other("a selected shape layer is locked".into()));
@@ -530,14 +530,22 @@ fn merge_shape_layers(s: &mut Session, ids: &[LayerId], op: Option<PathOp>, labe
         let LayerContent::Shape(sh) = &mut l.content else {
             return Err(EngineError::Other(format!("layer {} is not a shape layer", keep.0)));
         };
-        let mut merged = ShapeLayer { path, live: None, psd_raw: None, cache: None, ..sh.clone() };
+        // 숨김 레이어만 버리고 하나가 남으면 패스가 그대로이므로 라이브 셰이프도 유지한다.
+        let single = ids.len() == 1;
+        let mut merged = ShapeLayer {
+            path,
+            live: if single { sh.live.clone() } else { None },
+            psd_raw: if single { sh.psd_raw.clone() } else { None },
+            cache: None,
+            ..sh.clone()
+        };
         if let Some(tol) = bake {
             bake_components(&mut merged, tol)?;
         }
         vector::flatten::validate_shape(&merged.path, merged.stroke.as_ref()).map_err(|e| bad(label, e))?;
         refresh_shape(&snapshot, &mut merged);
         *sh = merged;
-        for id in ids.iter().filter(|id| **id != keep) {
+        for id in ids.iter().chain(discard).filter(|id| **id != keep) {
             doc.remove(*id);
         }
         *active = Some(keep);
@@ -547,13 +555,30 @@ fn merge_shape_layers(s: &mut Session, ids: &[LayerId], op: Option<PathOp>, labe
     shape_info(s, keep)
 }
 
+/// `ids` 를 벡터 그대로 병합할 수 있는지. 클리핑 상태가 다르면 합집합이 클리핑 결과와 달라지고
+/// 반전 패스는 합칠 수 없으므로, 그런 경우는 호출자가 래스터 병합으로 처리한다.
+pub(crate) fn can_merge_as_shapes(doc: &Document, ids: &[LayerId]) -> bool {
+    let mut layers = ids.iter().map(|id| doc.layer(*id));
+    let Some(Some(first)) = layers.next() else { return false };
+    let is_plain_shape = |l: &Layer| matches!(&l.content, LayerContent::Shape(sh) if !sh.path.inverted);
+    is_plain_shape(first) && layers.all(|l| l.is_some_and(|l| is_plain_shape(l) && l.clipped == first.clipped))
+}
+
+/// Merge Layers / Merge Down 의 셰이프 전용 경로: `visible` 의 패스를 맨 위 레이어로 합쳐 셰이프를
+/// 유지하고, 선택됐지만 숨겨진 `hidden` 은 래스터 병합과 같이 버린다.
+pub(crate) fn merge_shapes(s: &mut Session, visible: &[LayerId], hidden: &[LayerId], label: &str) -> Result<LayerId> {
+    let keep = *visible.last().ok_or_else(|| EngineError::Other(format!("{label} needs two or more shape layers")))?;
+    merge_shape_layers(s, visible, hidden, None, label, None)?;
+    Ok(keep)
+}
+
 /// Layer › Combine Shapes › Unite / Subtract Front Shape / Intersect / Exclude: merges the
 /// selected shape layers with `op` ([`merge_shape_layers`]), or with one layer (or an explicit
 /// `layer`/`subpath`) sets the operation of that layer's components (`shape.edit`'s `op`).
 pub(super) fn combine_shapes(s: &mut Session, p: &Value, op: &str, label: &str) -> Result<Value> {
     if let Some(ids) = combine_targets(s, p, &["layer", "subpath"])? {
         let op = op_from(op).ok_or_else(|| EngineError::Other(format!("unknown op `{op}`")))?;
-        return merge_shape_layers(s, &ids, Some(op), label, None);
+        return merge_shape_layers(s, &ids, &[], Some(op), label, None);
     }
     shape_edit(s, &with(p, "op", json!(op)))
 }

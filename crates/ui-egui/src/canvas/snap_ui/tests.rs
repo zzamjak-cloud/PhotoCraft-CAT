@@ -250,6 +250,22 @@ fn marquee_corner_snaps_to_guides_and_document_edges() {
     assert_eq!(sel.x1, 116);
 }
 
+/// 마퀴를 그릴 때 다른 레이어 경계에는 붙지 않는다 (Snap To Layers 가 켜져 있어도).
+#[test]
+fn drawing_a_marquee_does_not_snap_to_other_layers() {
+    for tool in [Tool::RectMarquee, Tool::EllipseMarquee] {
+        let mut app = app_with_box();
+        assert!(app.ui.view.snap_to.layers);
+        app.ui.tool = tool;
+        let m = egui::Modifiers::NONE;
+        crate::canvas::tool_event(&mut app, ToolEvent::Down { x: 10.0, y: 10.0, pressure: 1.0 }, m);
+        // 대상 박스의 왼쪽 위(300, 200)에서 2 px 떨어진 곳.
+        crate::canvas::tool_event(&mut app, ToolEvent::Up { x: 298.0, y: 198.0 }, m);
+        let sel = app.session.active().unwrap().doc.selection.as_ref().unwrap().content_bounds();
+        assert_eq!((sel.x1, sel.y1), (298, 198), "{tool:?}");
+    }
+}
+
 /// Space while drawing a marquee, Object Selection box or shape moves it: its edges snap, not
 /// only the corner under the pointer; with Space released the corner snaps again.
 #[test]

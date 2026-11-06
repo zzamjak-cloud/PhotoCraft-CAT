@@ -178,6 +178,65 @@ fn move_transform_controls_start_free_transform_for_vector_shapes() {
     assert_eq!(t.rect, [20.0, 30.0, 100.0, 70.0]);
 }
 
+/// 셰이프 도구(U): 셰이프 레이어를 선택하면 프레임이 보이고, 핸들 드래그는 한 단계로 크기를 바꾸며,
+/// 바깥쪽 드래그는 새 셰이프를 그린다.
+#[test]
+fn shape_tools_show_and_drag_the_transform_frame() {
+    let xf =
+        ViewXform { rect: Rect::from_min_size(Pos2::ZERO, vec2(200.0, 200.0)), zoom: 1.0, center: [100.0, 100.0], flip: false, rotation: 0.0, aspect: 1.0 };
+    let m = egui::Modifiers::NONE;
+    for tool in [Tool::Rectangle, Tool::EllipseShape, Tool::Triangle, Tool::Polygon, Tool::Line, Tool::CustomShape] {
+        let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
+        app.session.execute("file.new", json!({"width": 200, "height": 200})).unwrap();
+        app.session.execute("shape.create", json!({"kind": "rect", "rect": [20, 30, 80, 40], "fill": "#ff0000"})).unwrap();
+        app.sync_views();
+        app.ui.views[0].zoom = 1.0;
+        app.ui.views[0].fit_pending = false;
+        // Move 의 Show Transform Controls 설정과 무관하다.
+        app.ui.tool_options.move_show_transform = false;
+        app.ui.tool = tool;
+        let r = transform_controls_rect(&app, &xf).unwrap_or_else(|| panic!("{tool:?} 프레임"));
+        assert!(active_controls_cursor(&app, r, r.right_bottom()).is_some());
+        // 회전 띠와 내부는 새 셰이프 그리기 몫이다.
+        assert!(active_controls_cursor(&app, r, r.right_center() + vec2(16.0, 0.0)).is_none(), "{tool:?}");
+        assert!(active_controls_cursor(&app, r, r.center()).is_none(), "{tool:?}");
+
+        let ctx = egui::Context::default();
+        assert!(begin_transform_controls_at(&mut app, &ctx, &xf, r.right_bottom()));
+        let past = app.session.active().unwrap().history.past_len();
+        tool_event(&mut app, ToolEvent::Down { x: 100.0, y: 70.0, pressure: 1.0 }, m);
+        tool_event(&mut app, ToolEvent::Move { x: 150.0, y: 90.0, pressure: 1.0 }, m);
+        tool_event(&mut app, ToolEvent::Up { x: 150.0, y: 90.0 }, m);
+        assert!(app.ui.transform.is_some(), "{tool:?} 변형 세션");
+        crate::transform_tool::commit(&mut app);
+        let st = app.session.active().unwrap();
+        assert_eq!(st.doc.layers.iter().filter(|l| matches!(l.content, LayerContent::Shape(_))).count(), 1, "{tool:?} 새 셰이프를 그리지 않는다");
+        assert_eq!(st.history.past_len(), past + 1, "{tool:?}");
+        let l = st.doc.layer(st.active_layer.unwrap()).unwrap();
+        let b = photocraft_engine::transform_cmds::transform_frame(&st.doc, l);
+        // 코너 핸들은 비율 유지가 기본: 80×40 → 130×65.
+        assert_eq!((b.x1, b.y1), (150, 95), "{tool:?}");
+    }
+}
+
+#[test]
+fn shape_tools_show_no_frame_on_raster_layers() {
+    let xf =
+        ViewXform { rect: Rect::from_min_size(Pos2::ZERO, vec2(200.0, 200.0)), zoom: 1.0, center: [100.0, 100.0], flip: false, rotation: 0.0, aspect: 1.0 };
+    let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
+    app.session.execute("file.new", json!({"width": 200, "height": 200})).unwrap();
+    app.session.execute("layer.new.layer", json!({"name": "r"})).unwrap();
+    app.session.execute("select.rect", json!({"x": 10, "y": 10, "width": 50, "height": 50})).unwrap();
+    app.session.execute("edit.fill", json!({"color": "#ff0000"})).unwrap();
+    app.session.execute("select.deselect", json!({})).unwrap();
+    app.sync_views();
+    app.ui.tool = Tool::Rectangle;
+    assert!(transform_controls_rect(&app, &xf).is_none());
+    app.ui.tool_options.move_show_transform = true;
+    app.ui.tool = Tool::Move;
+    assert!(transform_controls_rect(&app, &xf).is_some());
+}
+
 #[test]
 fn hiding_extras_hides_the_move_transform_controls() {
     // #6699: as in Photoshop, View › Extras (⌘H) hides the Move tool's transform box and

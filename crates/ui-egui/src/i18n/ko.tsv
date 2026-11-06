@@ -3739,3 +3739,4 @@ smartSvg	AI/PDF/EPS contents will be edited as SVG. Saving replaces the embedded
 	Make Shape	셰이프 만들기
 	Make a filled shape layer from the path	패스로 채워진 셰이프 레이어 만들기
 	Outline Stroke	윤곽선 만들기
+	Link corner radius values	모서리 반경 값 연결
