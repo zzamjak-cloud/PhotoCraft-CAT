@@ -10,7 +10,7 @@ const FORK_REPO: &str = "zzamjak-cloud/PhotoCraft-CAT";
 #[test]
 fn updates_come_only_from_the_fork_repository() {
     assert_eq!(UPDATE_APP.repo, FORK_REPO);
-    assert!(!UPDATE_APP.repo.starts_with("storytold/"), "공식 PhotoCraft 저장소를 가리키면 안 된다");
+    assert!(!UPDATE_APP.repo.starts_with("storytold/"), "공식 PhotoCAT 저장소를 가리키면 안 된다");
     assert_eq!(UPDATE_APP.releases_url(), "https://github.com/zzamjak-cloud/PhotoCraft-CAT/releases");
     assert_eq!(UPDATE_APP.id, "photocraft-cat");
     assert_ne!(UPDATE_APP.name, craft_update::suite::PHOTOCRAFT.name, "업데이터 캐시 폴더가 공식 앱과 겹치면 안 된다");

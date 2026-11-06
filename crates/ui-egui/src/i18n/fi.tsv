@@ -545,9 +545,9 @@
 	Hide All	Piilota kaikki
 
 # Help
-	About PhotoCraft	Tietoja PhotoCraftista
-	PhotoCraft Website	PhotoCraft-verkkosivusto
-	PhotoCraft on GitHub	PhotoCraft GitHubissa
+	About PhotoCAT	Tietoja PhotoCraftista
+	PhotoCAT Website	PhotoCAT-verkkosivusto
+	PhotoCAT on GitHub	PhotoCAT GitHubissa
 	Report an Issue…	Ilmoita ongelmasta…
 	ArtCraft Website	ArtCraft-verkkosivusto
 	Join the ArtCraft Discord…	Liity ArtCraftin Discordiin…
@@ -628,11 +628,11 @@
 	Import Shortcuts…	Tuo pikanäppäimet…
 	Load a keyboard shortcut set saved as .kys	Lataa .kys-muodossa tallennettu pikanäppäinsarja
 	Imported {n} shortcuts from {file}. Click OK to keep them.	Tuotiin {n} pikanäppäintä tiedostosta {file}. Säilytä ne napsauttamalla OK.
-	{n} commands are not in PhotoCraft.	{n} komentoa ei ole PhotoCraftissa.
+	{n} commands are not in PhotoCAT.	{n} komentoa ei ole PhotoCraftissa.
 	Keyboard shortcuts imported	Pikanäppäimet tuotu
 	Your keyboard shortcut set {set} is in use here: {n} shortcuts differ from the defaults. Edit › Keyboard Shortcuts shows them; Reset All to Defaults undoes this.	Pikanäppäinsarjasi {set} on käytössä: {n} pikanäppäintä poikkeaa oletuksista. Muokkaa › Pikanäppäimet näyttää ne; Palauta kaikki oletuksiin kumoaa tämän.
 	Import keyboard shortcuts?	Tuodaanko pikanäppäimet?
-	PhotoCraft found your keyboard shortcut set {set} from another image editor on this computer: {n} of its shortcuts differ from PhotoCraft's. Import it?	PhotoCraft löysi tältä tietokoneelta toisen kuvankäsittelyohjelman pikanäppäinsarjan {set}: {n} sen pikanäppäintä poikkeaa PhotoCraftin pikanäppäimistä. Tuodaanko se?
+	PhotoCAT found your keyboard shortcut set {set} from another image editor on this computer: {n} of its shortcuts differ from PhotoCAT's. Import it?	PhotoCAT löysi tältä tietokoneelta toisen kuvankäsittelyohjelman pikanäppäinsarjan {set}: {n} sen pikanäppäintä poikkeaa PhotoCraftin pikanäppäimistä. Tuodaanko se?
 	Edit › Keyboard Shortcuts › Reset All to Defaults undoes an import.	Muokkaa › Pikanäppäimet › Palauta kaikki oletuksiin kumoaa tuonnin.
 	Don't Import	Älä tuo
 	The keyboard shortcut set was not imported: {error}	Pikanäppäinsarjaa ei tuotu: {error}
@@ -936,7 +936,7 @@
 	Embed Color Profile	Upota väriprofiili
 	Assign Profile…	Määritä profiili…
 	Convert to Profile…	Muunna profiiliksi…
-	PhotoCraft Manages Colors	PhotoCraft hallitsee värejä
+	PhotoCAT Manages Colors	PhotoCAT hallitsee värejä
 	Printer Manages Colors	Tulostin hallitsee värejä
 	(print to the printer)	(tulosta tulostimelle)
 	Absolute Colorimetric	Absoluuttinen kolorimetrinen
@@ -1539,8 +1539,8 @@
 	Use File › Open, or paste a copied image with {paste}.	Käytä komentoa Tiedosto › Avaa tai liitä kopioitu kuva komennolla {paste}.
 	Native file drag-and-drop is unavailable	Tiedostojen vetäminen ja pudottaminen ei ole käytettävissä
 	Native file drag-and-drop is not supported on Wayland yet. Use File › Open, or copy the image in your file manager and paste it with {paste}.	Tiedostojen vetämistä ja pudottamista ei vielä tueta Waylandissa. Käytä komentoa Tiedosto › Avaa tai kopioi kuva tiedostonhallinnassa ja liitä se komennolla {paste}.
-	To drop files, start PhotoCraft under XWayland: `{command}`	Jos haluat pudottaa tiedostoja, käynnistä PhotoCraft XWaylandissa: `{command}`
-	Or set Preferences › Performance › Linux display server to X11: PhotoCraft then always starts under XWayland.	Tai aseta Asetukset › Suorituskyky › Linux-näyttöpalvelin arvoksi X11: PhotoCraft käynnistyy tällöin aina XWaylandissa.
+	To drop files, start PhotoCAT under XWayland: `{command}`	Jos haluat pudottaa tiedostoja, käynnistä PhotoCAT XWaylandissa: `{command}`
+	Or set Preferences › Performance › Linux display server to X11: PhotoCAT then always starts under XWayland.	Tai aseta Asetukset › Suorituskyky › Linux-näyttöpalvelin arvoksi X11: PhotoCAT käynnistyy tällöin aina XWaylandissa.
 	Edit › Paste	Muokkaa › Liitä
 	Photo	Valokuva
 	Print	Tulosta
@@ -1699,7 +1699,7 @@
 	Reverse	Käännä järjestys
 	Align with layer	Tasaa tason kanssa
 	Join us on Discord	Liity Discordiin
-	PhotoCraft website	PhotoCraft-verkkosivusto
+	PhotoCAT website	PhotoCAT-verkkosivusto
 	ArtCraft	ArtCraft
 	GitHub	GitHub
 	No character style	Ei merkkityyliä
@@ -1725,7 +1725,7 @@
 	Don't Save	Älä tallenna
 	No	Ei
 	Yes	Kyllä
-	These settings aren't available in PhotoCraft yet.	Nämä asetukset eivät ole vielä käytettävissä PhotoCraftissa.
+	These settings aren't available in PhotoCAT yet.	Nämä asetukset eivät ole vielä käytettävissä PhotoCraftissa.
 	Shortcut removed.	Pikanäppäin poistettu.
 	All shortcuts reset to PhotoCraft defaults.	Kaikki pikanäppäimet palautettu PhotoCraftin oletusasetuksiin.
 	Add Shortcut	Lisää pikanäppäin
@@ -2210,8 +2210,8 @@
 	Output:	Lähtö:
 	Paint Overlay	Maalipeite
 	Pattern Size	Kuvion koko
-	PhotoCraft	PhotoCraft
-	PhotoCraft — an open-source, native image editor written in Rust.	PhotoCraft — avoimen lähdekoodin natiivi kuvankäsittelyohjelma, joka on kirjoitettu Rustilla.
+	PhotoCAT	PhotoCAT
+	PhotoCAT — an open-source, native image editor written in Rust.	PhotoCAT — avoimen lähdekoodin natiivi kuvankäsittelyohjelma, joka on kirjoitettu Rustilla.
 	Position and Size	Sijainti ja koko
 	Preserve Details	Säilytä yksityiskohdat
 	Preserve Luminosity	Säilytä luminanssi
@@ -2543,7 +2543,7 @@
 	Automatic uses GPU acceleration when available and falls back to CPU rendering on errors.	Automaattinen käyttää GPU-kiihdytystä, kun se on käytettävissä, ja siirtyy virhetilanteissa CPU-renderöintiin.
 	Switched to CPU rendering	Siirryttiin CPU-renderöintiin
 	GPU acceleration could not continue. Your documents are unchanged.	GPU-kiihdytystä ei voitu jatkaa. Asiakirjasi ovat ennallaan.
-	PhotoCraft is using the CPU image compositor. The window may still use your graphics adapter.	PhotoCraft käyttää CPU-kuvankoostinta. Ikkuna voi silti käyttää näytönohjainta.
+	PhotoCAT is using the CPU image compositor. The window may still use your graphics adapter.	PhotoCAT käyttää CPU-kuvankoostinta. Ikkuna voi silti käyttää näytönohjainta.
 	Retry GPU requires a restart. Save your work first.	GPU:n uudelleenyritys vaatii uudelleenkäynnistyksen. Tallenna työsi ensin.
 	Retry GPU tries the graphics processor again now.	Yritä GPU:ta uudelleen -toiminto kokeilee grafiikkasuoritinta heti uudelleen.
 	GPU acceleration resumed.	GPU-kiihdytys on taas käytössä.
@@ -2796,7 +2796,7 @@ fontWeight	Italic	Kursivoitu
 	Color to Alpha…	Väri alfaksi…
 	Transparency Threshold	Läpinäkyvyyskynnys
 	Opacity Threshold	Peittävyyskynnys
-	PhotoCraft — Screen Color Picker	PhotoCraft — näytön värinvalitsin
+	PhotoCAT — Screen Color Picker	PhotoCAT — näytön värinvalitsin
 
 	Rasterize svg groups deeper than	Rasteroi SVG-ryhmät, joiden syvyys on yli
 	0 turns this threshold off; SVG groups nested deeper than 100 levels are always rasterized.	0 poistaa tämän kynnyksen käytöstä; yli 100 tason syvyyteen sisäkkäiset SVG-ryhmät rasteroidaan aina.
@@ -3306,9 +3306,9 @@ curves	Smooth	Tasoita
 	Bicubic Smoother	Bikubinen pehmeämpi
 	Bicubic Sharper	Bikubinen terävämpi
 	Pasting from other apps is unavailable	Liittäminen muista sovelluksista ei ole käytettävissä
-	PhotoCraft can't reach the system clipboard in this session. On Wayland, a Flatpak sandbox hides the protocol that images from other apps are read through.	PhotoCraft ei pääse järjestelmän leikepöydälle tässä istunnossa. Waylandissa Flatpak-hiekkalaatikko piilottaa protokollan, jonka kautta muiden sovellusten kuvat luetaan.
-	To paste from other apps, start PhotoCraft under XWayland: `{command}`	Jos haluat liittää muista sovelluksista, käynnistä PhotoCraft XWaylandin alla: `{command}`
-	Nothing to paste: PhotoCraft can't read the system clipboard here	Ei liitettävää: PhotoCraft ei pysty lukemaan järjestelmän leikepöytää täällä
+	PhotoCAT can't reach the system clipboard in this session. On Wayland, a Flatpak sandbox hides the protocol that images from other apps are read through.	PhotoCAT ei pääse järjestelmän leikepöydälle tässä istunnossa. Waylandissa Flatpak-hiekkalaatikko piilottaa protokollan, jonka kautta muiden sovellusten kuvat luetaan.
+	To paste from other apps, start PhotoCAT under XWayland: `{command}`	Jos haluat liittää muista sovelluksista, käynnistä PhotoCAT XWaylandin alla: `{command}`
+	Nothing to paste: PhotoCAT can't read the system clipboard here	Ei liitettävää: PhotoCAT ei pysty lukemaan järjestelmän leikepöytää täällä
 	Delete this set	Poista tämä sarja
 	New Set…	Uusi sarja…
 	PhotoCraft Defaults	PhotoCraft-oletukset
@@ -4163,7 +4163,7 @@ curves	Smooth	Tasoita
 	Pentagon	Viisikulmio
 	Percentage	Prosenttiosuus
 	Permission denied	Käyttöoikeus evätty
-	PhotoCraft keeps retrying; until a save succeeds, preference changes are lost when it closes.	PhotoCraft yrittää uudelleen; ennen onnistunutta tallennusta tehdyt asetusmuutokset menetetään, kun sovellus suljetaan.
+	PhotoCAT keeps retrying; until a save succeeds, preference changes are lost when it closes.	PhotoCAT yrittää uudelleen; ennen onnistunutta tallennusta tehdyt asetusmuutokset menetetään, kun sovellus suljetaan.
 	Photomerge	Photomerge
 	Pick Color From Image	Poimi väri kuvasta
 	Picture Frame	Kuvakehys
@@ -4220,7 +4220,7 @@ curves	Smooth	Tasoita
 	Pyramids	Pyramidit
 	Quick Actions	Pikatoiminnot
 	Quit	Lopeta
-	Quit PhotoCraft	Lopeta PhotoCraft
+	Quit PhotoCAT	Lopeta PhotoCAT
 	Quit {app}	Lopeta {app}
 	R G B	R G B
 	R g b	R g b
@@ -4296,7 +4296,7 @@ curves	Smooth	Tasoita
 	Save a Copy	Tallenna kopio
 	Save before closing?	Tallennetaanko ennen sulkemista?
 	Save for Web (Legacy)	Tallenna verkkoa varten (vanha)
-	Save your work and restart PhotoCraft to retry GPU acceleration. CPU rendering remains active for this session.	Tallenna työsi ja käynnistä PhotoCraft uudelleen, niin GPU-kiihdytystä yritetään uudelleen. CPU-renderöinti pysyy käytössä tämän istunnon ajan.
+	Save your work and restart PhotoCAT to retry GPU acceleration. CPU rendering remains active for this session.	Tallenna työsi ja käynnistä PhotoCAT uudelleen, niin GPU-kiihdytystä yritetään uudelleen. CPU-renderöinti pysyy käytössä tämän istunnon ajan.
 	Saved a copy as {path}	Kopio tallennettu nimellä {path}
 	Saved {path}; image assets: {n} in {dir}	Tallennettu {path}; kuvaresurssit: {n} kansiossa {dir}
 	Saving…	Tallennetaan…

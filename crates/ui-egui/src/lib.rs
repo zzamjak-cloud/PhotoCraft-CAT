@@ -9,7 +9,7 @@
 #![recursion_limit = "256"]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
-/// craft-update 이 아는 PhotoCraft CAT 포크. 업데이트 확인·다운로드는 `repo` 저장소의 릴리스로만
+/// craft-update 이 아는 PhotoCAT 포크. 업데이트 확인·다운로드는 `repo` 저장소의 릴리스로만
 /// 한정되므로 공식 PhotoCraft(storytold/photocraft) 릴리스를 받아오지 않는다.
 /// `id` 는 릴리스 에셋 접두사(`photocraft-cat-<버전>-<os>-<arch>.<ext>`)이자 macOS 업데이트
 /// tarball 안의 바이너리 이름이며, `name` 은 업데이터 캐시 폴더 이름이다.
@@ -18,7 +18,7 @@ pub const UPDATE_APP: craft_update::app::App = craft_update::app::App {
     icon_png: Some(include_bytes!("../../../assets/app-icon/hicolor/128x128/apps/ai.storyteller.photocraft.png")),
     accent: Some([0x2f, 0x7b, 0xf5]),
     developer: "zzamjak-cloud",
-    ..craft_update::app::App::new("photocraft-cat", "PhotoCraft CAT", "Image editing", "zzamjak-cloud/PhotoCraft-CAT")
+    ..craft_update::app::App::new("photocraft-cat", "PhotoCAT", "Image editing", "zzamjak-cloud/PhotoCraft-CAT")
 };
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  PhotoCraft CAT 포크의 Windows(x64) 포터블 zip 을 만든다. 코드 서명은 하지 않는다.
+  PhotoCAT 포크의 Windows(x64) 포터블 zip 을 만든다. 코드 서명은 하지 않는다.
 
     dist/release/photocraft-cat-<버전>-windows-x64-portable.zip
       photocraft-cat.exe + portable.txt + 라이선스 문서 (zip 루트에 바로 위치)

@@ -29,9 +29,9 @@ mod shapes;
 pub(crate) use curvature::curvature_anchor_at;
 pub use curvature::{curvature_down, curvature_move, curvature_toggle, curvature_up};
 #[cfg(test)]
-use options::{corner_radii_patch, solid_paint};
-#[cfg(test)]
 use options::{corner_radii_grid, linked_radii_patch};
+#[cfg(test)]
+use options::{corner_radii_patch, solid_paint};
 pub(crate) use options::{enabled_stroke_width, paint_gesture};
 pub use options::{options_bar, shape_properties};
 pub use overlay::draw_overlay;

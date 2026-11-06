@@ -843,9 +843,9 @@
 	Timeline	Tijdlijn
 	Tool Presets	Gereedschapsvoorinstellingen
 	Tools	Gereedschappen
-	About PhotoCraft	Over PhotoCraft
-	PhotoCraft Website	Website van PhotoCraft
-	PhotoCraft on GitHub	PhotoCraft op GitHub
+	About PhotoCAT	Over PhotoCAT
+	PhotoCAT Website	Website van PhotoCAT
+	PhotoCAT on GitHub	PhotoCAT op GitHub
 	ArtCraft Website	Website van ArtCraft
 	Join the ArtCraft Discord…	Deelnemen aan de ArtCraft-Discord…
 	Report an Issue…	Probleem melden…
@@ -1155,8 +1155,8 @@
 	Drop an image or PSD anywhere to open it.	Sleep een afbeelding of PSD ergens naartoe om deze te openen.
 	Native file drag-and-drop is unavailable	Bestanden slepen en neerzetten is niet beschikbaar
 	Native file drag-and-drop is not supported on Wayland yet. Use File › Open, or copy the image in your file manager and paste it with {paste}.	Bestanden slepen en neerzetten wordt nog niet ondersteund onder Wayland. Gebruik Bestand › Openen, of kopieer de afbeelding in je bestandsbeheerder en plak deze met {paste}.
-	To drop files, start PhotoCraft under XWayland: `{command}`	Start PhotoCraft onder XWayland om bestanden neer te zetten: `{command}`
-	Or set Preferences › Performance › Linux display server to X11: PhotoCraft then always starts under XWayland.	Of zet Voorkeuren › Prestaties › Linux-weergaveserver op X11: PhotoCraft start dan altijd onder XWayland.
+	To drop files, start PhotoCAT under XWayland: `{command}`	Start PhotoCAT onder XWayland om bestanden neer te zetten: `{command}`
+	Or set Preferences › Performance › Linux display server to X11: PhotoCAT then always starts under XWayland.	Of zet Voorkeuren › Prestaties › Linux-weergaveserver op X11: PhotoCAT start dan altijd onder XWayland.
 	Edit › Paste	Bewerken › Plakken
 	Duplicate Layers…	Lagen dupliceren…
 	Duplicate style	Stijl dupliceren
@@ -1406,9 +1406,9 @@
 	Perspective Warp is not active	Perspectiefvervorming is niet actief
 	Perspective Warp: draw planes along the image's perspective, then switch to Warp	Perspectiefvervorming: teken vlakken langs het perspectief van de afbeelding en schakel daarna naar Verbuigen
 	Photo Filter	Fotofilter
-	PhotoCraft	PhotoCraft
-	PhotoCraft Manages Colors	PhotoCraft beheert kleuren
-	PhotoCraft — an open-source, native image editor written in Rust.	PhotoCraft — een opensource, native afbeeldingseditor geschreven in Rust.
+	PhotoCAT	PhotoCAT
+	PhotoCAT Manages Colors	PhotoCAT beheert kleuren
+	PhotoCAT — an open-source, native image editor written in Rust.	PhotoCAT — een opensource, native afbeeldingseditor geschreven in Rust.
 	Pin Depth:	Speldiepte:
 	Pixel Length:	Pixellengte:
 	Pixels/Centimeter	Pixels/centimeter
@@ -1483,11 +1483,11 @@
 	Import Shortcuts…	Sneltoetsen importeren…
 	Load a keyboard shortcut set saved as .kys	Een als .kys opgeslagen sneltoetsenset laden
 	Imported {n} shortcuts from {file}. Click OK to keep them.	{n} sneltoetsen geïmporteerd uit {file}. Klik op OK om ze te behouden.
-	{n} commands are not in PhotoCraft.	{n} opdrachten bestaan niet in PhotoCraft.
+	{n} commands are not in PhotoCAT.	{n} opdrachten bestaan niet in PhotoCAT.
 	Keyboard shortcuts imported	Sneltoetsen geïmporteerd
 	Your keyboard shortcut set {set} is in use here: {n} shortcuts differ from the defaults. Edit › Keyboard Shortcuts shows them; Reset All to Defaults undoes this.	Je sneltoetsenset {set} wordt hier gebruikt: {n} sneltoetsen wijken af van de standaardwaarden. Bewerken › Sneltoetsen toont ze; Alles terugzetten naar standaard maakt dit ongedaan.
 	Import keyboard shortcuts?	Sneltoetsen importeren?
-	PhotoCraft found your keyboard shortcut set {set} from another image editor on this computer: {n} of its shortcuts differ from PhotoCraft's. Import it?	PhotoCraft heeft op deze computer je sneltoetsenset {set} van een andere beeldbewerker gevonden: {n} van de sneltoetsen wijken af van die van PhotoCraft. Importeren?
+	PhotoCAT found your keyboard shortcut set {set} from another image editor on this computer: {n} of its shortcuts differ from PhotoCAT's. Import it?	PhotoCAT heeft op deze computer je sneltoetsenset {set} van een andere beeldbewerker gevonden: {n} van de sneltoetsen wijken af van die van PhotoCAT. Importeren?
 	Edit › Keyboard Shortcuts › Reset All to Defaults undoes an import.	Bewerken › Sneltoetsen › Alles terugzetten naar standaard maakt een import ongedaan.
 	Don't Import	Niet importeren
 	The keyboard shortcut set was not imported: {error}	De sneltoetsenset is niet geïmporteerd: {error}
@@ -1820,7 +1820,7 @@
 	Pen Tool	Pengereedschap
 	Convert Point Tool	Punt-converteergereedschap
 	Photo	Foto
-	PhotoCraft website	Website van PhotoCraft
+	PhotoCAT website	Website van PhotoCAT
 	Picas	Pica's
 	Pillow Emboss	Kussenreliëf
 	Pixel Replacement	Pixelvervanging
@@ -2150,7 +2150,7 @@
 	System Info	Systeeminformatie
 	More panels	Meer panelen
 	More documents	Meer documenten
-	These settings aren't available in PhotoCraft yet.	Deze instellingen zijn nog niet beschikbaar in PhotoCraft.
+	These settings aren't available in PhotoCAT yet.	Deze instellingen zijn nog niet beschikbaar in PhotoCAT.
 	Graphics	Grafisch
 	Reset GPU Backend	GPU-backend herstellen
 	Applies at next launch.	Wordt toegepast bij de volgende start.
@@ -2359,7 +2359,7 @@
 	Automatic uses GPU acceleration when available and falls back to CPU rendering on errors.	Automatisch gebruikt GPU-versnelling indien beschikbaar en valt bij fouten terug op CPU-rendering.
 	Switched to CPU rendering	Overgeschakeld naar CPU-rendering
 	GPU acceleration could not continue. Your documents are unchanged.	GPU-versnelling kon niet doorgaan. Je documenten zijn ongewijzigd.
-	PhotoCraft is using the CPU image compositor. The window may still use your graphics adapter.	PhotoCraft gebruikt de CPU-beeldcompositor. Het venster kan nog steeds je grafische adapter gebruiken.
+	PhotoCAT is using the CPU image compositor. The window may still use your graphics adapter.	PhotoCAT gebruikt de CPU-beeldcompositor. Het venster kan nog steeds je grafische adapter gebruiken.
 	Retry GPU requires a restart. Save your work first.	GPU opnieuw proberen vereist een herstart. Sla eerst je werk op.
 	Retry GPU tries the graphics processor again now.	GPU opnieuw proberen probeert de grafische processor nu opnieuw.
 	GPU acceleration resumed.	GPU-versnelling hervat.
@@ -2751,7 +2751,7 @@ cameraRaw	Color	Kleur
 	Restart Required	Herstart vereist
 	Restart	Opnieuw starten
 	Quit	Afsluiten
-	Quit PhotoCraft	PhotoCraft afsluiten
+	Quit PhotoCAT	PhotoCAT afsluiten
 	Close Window	Venster sluiten
 	New Window	Nieuw venster
 	Open Image	Afbeelding openen
@@ -3881,7 +3881,7 @@ cameraData	Lens	Lens
 	There is no crop size or ratio to save	Er is geen uitsnijformaat of verhouding om op te slaan
 	Search settings…	Instellingen zoeken…
 	No matching settings	Geen overeenkomende instellingen
-	PhotoCraft — Screen Color Picker	PhotoCraft — Schermkleurkiezer
+	PhotoCAT — Screen Color Picker	PhotoCAT — Schermkleurkiezer
 	Sampling Brush Tool	Gereedschap Monsterpenseel
 	Sampling Area Overlay	Overlay van monstergebied
 	Show Sampling Area	Monstergebied tonen
@@ -4114,9 +4114,9 @@ curves	Smooth	Vloeiend maken
 	Bicubic Smoother	Bicubisch vloeiender
 	Bicubic Sharper	Bicubisch scherper
 	Pasting from other apps is unavailable	Plakken vanuit andere apps is niet beschikbaar
-	PhotoCraft can't reach the system clipboard in this session. On Wayland, a Flatpak sandbox hides the protocol that images from other apps are read through.	PhotoCraft heeft in deze sessie geen toegang tot het systeemklembord. Onder Wayland verbergt een Flatpak-sandbox het protocol waarmee afbeeldingen uit andere apps worden gelezen.
-	To paste from other apps, start PhotoCraft under XWayland: `{command}`	Om vanuit andere apps te plakken, start je PhotoCraft onder XWayland: `{command}`
-	Nothing to paste: PhotoCraft can't read the system clipboard here	Niets om te plakken: PhotoCraft kan het systeemklembord hier niet lezen
+	PhotoCAT can't reach the system clipboard in this session. On Wayland, a Flatpak sandbox hides the protocol that images from other apps are read through.	PhotoCAT heeft in deze sessie geen toegang tot het systeemklembord. Onder Wayland verbergt een Flatpak-sandbox het protocol waarmee afbeeldingen uit andere apps worden gelezen.
+	To paste from other apps, start PhotoCAT under XWayland: `{command}`	Om vanuit andere apps te plakken, start je PhotoCAT onder XWayland: `{command}`
+	Nothing to paste: PhotoCAT can't read the system clipboard here	Niets om te plakken: PhotoCAT kan het systeemklembord hier niet lezen
 	Delete this set	Deze set verwijderen
 	New Set…	Nieuwe set…
 	PhotoCraft Defaults	PhotoCraft-standaard

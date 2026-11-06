@@ -814,9 +814,9 @@
 	Timeline	المخطط الزمني
 	Tool Presets	الإعدادات المسبقة للأدوات
 	Tools	الأدوات
-	About PhotoCraft	حول PhotoCraft
-	PhotoCraft Website	موقع PhotoCraft
-	PhotoCraft on GitHub	PhotoCraft على GitHub
+	About PhotoCAT	حول PhotoCAT
+	PhotoCAT Website	موقع PhotoCAT
+	PhotoCAT on GitHub	PhotoCAT على GitHub
 	ArtCraft Website	موقع ArtCraft
 	Join the ArtCraft Discord…	الانضمام إلى ArtCraft على Discord…
 	Report an Issue…	الإبلاغ عن مشكلة…
@@ -1128,8 +1128,8 @@
 	Drop an image or PSD anywhere to open it.	أفلت صورة أو ملف PSD في أي مكان لفتحه.
 	Native file drag-and-drop is unavailable	السحب والإفلات الأصلي للملفات غير متاح
 	Native file drag-and-drop is not supported on Wayland yet. Use File › Open, or copy the image in your file manager and paste it with {paste}.	السحب والإفلات الأصلي للملفات غير مدعوم على Wayland بعد. استخدم ملف › فتح، أو انسخ الصورة في مدير الملفات والصقها باستخدام {paste}.
-	To drop files, start PhotoCraft under XWayland: `{command}`	لإفلات الملفات، شغّل PhotoCraft تحت XWayland: `{command}`
-	Or set Preferences › Performance › Linux display server to X11: PhotoCraft then always starts under XWayland.	أو اضبط التفضيلات › الأداء › خادم عرض Linux على X11: عندها يبدأ PhotoCraft دائمًا تحت XWayland.
+	To drop files, start PhotoCAT under XWayland: `{command}`	لإفلات الملفات، شغّل PhotoCAT تحت XWayland: `{command}`
+	Or set Preferences › Performance › Linux display server to X11: PhotoCAT then always starts under XWayland.	أو اضبط التفضيلات › الأداء › خادم عرض Linux على X11: عندها يبدأ PhotoCAT دائمًا تحت XWayland.
 	Edit › Paste	تحرير › لصق
 	Duplicate Layers…	تكرار الطبقات…
 	Duplicate style	تكرار النمط
@@ -1379,9 +1379,9 @@
 	Perspective Warp is not active	التواء المنظور غير نشط
 	Perspective Warp: draw planes along the image's perspective, then switch to Warp	التواء المنظور: ارسم مستويات وفق منظور الصورة، ثم انتقل إلى الالتواء
 	Photo Filter	فلتر الصور
-	PhotoCraft	PhotoCraft
-	PhotoCraft Manages Colors	PhotoCraft يدير الألوان
-	PhotoCraft — an open-source, native image editor written in Rust.	PhotoCraft — محرر صور أصلي ومفتوح المصدر مكتوب بلغة Rust.
+	PhotoCAT	PhotoCAT
+	PhotoCAT Manages Colors	PhotoCAT يدير الألوان
+	PhotoCAT — an open-source, native image editor written in Rust.	PhotoCAT — محرر صور أصلي ومفتوح المصدر مكتوب بلغة Rust.
 	Pin Depth:	عمق الدبوس:
 	Pixel Length:	الطول بالبكسل:
 	Pixels/Centimeter	بكسل/سنتيمتر
@@ -1457,11 +1457,11 @@
 	Import Shortcuts…	استيراد الاختصارات…
 	Load a keyboard shortcut set saved as .kys	تحميل مجموعة اختصارات لوحة مفاتيح محفوظة بتنسيق .kys
 	Imported {n} shortcuts from {file}. Click OK to keep them.	تم استيراد {n} من الاختصارات من {file}. انقر «موافق» للاحتفاظ بها.
-	{n} commands are not in PhotoCraft.	{n} من الأوامر غير موجودة في PhotoCraft.
+	{n} commands are not in PhotoCAT.	{n} من الأوامر غير موجودة في PhotoCAT.
 	Keyboard shortcuts imported	تم استيراد اختصارات لوحة المفاتيح
 	Your keyboard shortcut set {set} is in use here: {n} shortcuts differ from the defaults. Edit › Keyboard Shortcuts shows them; Reset All to Defaults undoes this.	مجموعة اختصارات لوحة المفاتيح {set} الخاصة بك قيد الاستخدام هنا: {n} من الاختصارات تختلف عن الافتراضيات. يعرضها «تحرير › اختصارات لوحة المفاتيح»؛ ويتراجع «إعادة تعيين الكل إلى الافتراضيات» عن ذلك.
 	Import keyboard shortcuts?	هل تريد استيراد اختصارات لوحة المفاتيح؟
-	PhotoCraft found your keyboard shortcut set {set} from another image editor on this computer: {n} of its shortcuts differ from PhotoCraft's. Import it?	عثر PhotoCraft على مجموعة اختصارات لوحة المفاتيح {set} الخاصة بك من محرر صور آخر على هذا الكمبيوتر: {n} من اختصاراتها تختلف عن اختصارات PhotoCraft. هل تريد استيرادها؟
+	PhotoCAT found your keyboard shortcut set {set} from another image editor on this computer: {n} of its shortcuts differ from PhotoCAT's. Import it?	عثر PhotoCAT على مجموعة اختصارات لوحة المفاتيح {set} الخاصة بك من محرر صور آخر على هذا الكمبيوتر: {n} من اختصاراتها تختلف عن اختصارات PhotoCAT. هل تريد استيرادها؟
 	Edit › Keyboard Shortcuts › Reset All to Defaults undoes an import.	تحرير › اختصارات لوحة المفاتيح › إعادة تعيين الكل إلى الافتراضيات يؤدي إلى التراجع عن الاستيراد.
 	Don't Import	عدم الاستيراد
 	The keyboard shortcut set was not imported: {error}	لم يتم استيراد مجموعة اختصارات لوحة المفاتيح: {error}
@@ -1797,7 +1797,7 @@
 	Pen Tool	أداة القلم
 	Convert Point Tool	أداة تحويل النقطة
 	Photo	صورة فوتوغرافية
-	PhotoCraft website	موقع PhotoCraft
+	PhotoCAT website	موقع PhotoCAT
 	Picas	بيكا
 	Pillow Emboss	نقش وسادي
 	Pixel Replacement	استبدال البكسل
@@ -2129,7 +2129,7 @@
 	System Info	معلومات النظام
 	More panels	المزيد من اللوحات
 	More documents	المزيد من المستندات
-	These settings aren't available in PhotoCraft yet.	هذه الإعدادات غير متاحة في PhotoCraft بعد.
+	These settings aren't available in PhotoCAT yet.	هذه الإعدادات غير متاحة في PhotoCAT بعد.
 	Graphics	الرسومات
 	Reset GPU Backend	إعادة تعيين واجهة GPU الخلفية
 	Applies at next launch.	يُطبّق عند التشغيل التالي.
@@ -2343,7 +2343,7 @@
 	Automatic uses GPU acceleration when available and falls back to CPU rendering on errors.	يستخدم الوضع التلقائي تسريع GPU عند توفره ويعود إلى تصيير CPU عند حدوث أخطاء.
 	Switched to CPU rendering	تم التبديل إلى تصيير CPU
 	GPU acceleration could not continue. Your documents are unchanged.	تعذّر استمرار تسريع GPU. مستنداتك لم تتغير.
-	PhotoCraft is using the CPU image compositor. The window may still use your graphics adapter.	يستخدم PhotoCraft مركب الصور على CPU. قد تظل النافذة تستخدم محول الرسومات لديك.
+	PhotoCAT is using the CPU image compositor. The window may still use your graphics adapter.	يستخدم PhotoCAT مركب الصور على CPU. قد تظل النافذة تستخدم محول الرسومات لديك.
 	Retry GPU requires a restart. Save your work first.	تتطلب إعادة محاولة GPU إعادة التشغيل. احفظ عملك أولًا.
 	Retry GPU tries the graphics processor again now.	تؤدي إعادة محاولة GPU إلى تجربة معالج الرسومات مرة أخرى الآن.
 	GPU acceleration resumed.	تم استئناف تسريع GPU.
@@ -2583,7 +2583,7 @@ fontWeight	Italic	مائل
 	Color to Alpha…	اللون إلى ألفا…
 	Transparency Threshold	عتبة الشفافية
 	Opacity Threshold	عتبة العتامة
-	PhotoCraft — Screen Color Picker	PhotoCraft — منتقي ألوان الشاشة
+	PhotoCAT — Screen Color Picker	PhotoCAT — منتقي ألوان الشاشة
 
 	Rasterize svg groups deeper than	تنقيط مجموعات SVG إذا كانت أعمق من
 	0 turns this threshold off; SVG groups nested deeper than 100 levels are always rasterized.	0 يعطّل هذه العتبة؛ تُنقَّط مجموعات SVG المتداخلة بعمق أكبر من 100 مستوى دائمًا.
@@ -3370,9 +3370,9 @@ curves	Smooth	تنعيم
 	Bicubic Smoother	ثنائي التكعيب أكثر نعومة
 	Bicubic Sharper	ثنائي التكعيب أكثر حدة
 	Pasting from other apps is unavailable	اللصق من التطبيقات الأخرى غير متاح
-	PhotoCraft can't reach the system clipboard in this session. On Wayland, a Flatpak sandbox hides the protocol that images from other apps are read through.	لا يستطيع PhotoCraft الوصول إلى حافظة النظام في هذه الجلسة. على Wayland، يُخفي صندوق الحماية Flatpak البروتوكول الذي تُقرأ عبره الصور من التطبيقات الأخرى.
-	To paste from other apps, start PhotoCraft under XWayland: `{command}`	للصق من التطبيقات الأخرى، شغّل PhotoCraft ضمن XWayland: `{command}`
-	Nothing to paste: PhotoCraft can't read the system clipboard here	لا يوجد شيء للصق: لا يستطيع PhotoCraft قراءة حافظة النظام هنا
+	PhotoCAT can't reach the system clipboard in this session. On Wayland, a Flatpak sandbox hides the protocol that images from other apps are read through.	لا يستطيع PhotoCAT الوصول إلى حافظة النظام في هذه الجلسة. على Wayland، يُخفي صندوق الحماية Flatpak البروتوكول الذي تُقرأ عبره الصور من التطبيقات الأخرى.
+	To paste from other apps, start PhotoCAT under XWayland: `{command}`	للصق من التطبيقات الأخرى، شغّل PhotoCAT ضمن XWayland: `{command}`
+	Nothing to paste: PhotoCAT can't read the system clipboard here	لا يوجد شيء للصق: لا يستطيع PhotoCAT قراءة حافظة النظام هنا
 	Delete this set	حذف هذه المجموعة
 	New Set…	مجموعة جديدة…
 	PhotoCraft Defaults	الإعدادات الافتراضية لـ PhotoCraft

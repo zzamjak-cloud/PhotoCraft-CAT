@@ -121,7 +121,9 @@ use textures::{ensure_gpu, redraw_focus, visible_doc_rect};
 pub use tool_input::{ToolEvent, selection_drag_kind, tool_event};
 pub(crate) use tool_input::{command_guide_at, command_moves_layer, event_tool};
 pub(crate) use transform_controls::{LAYER_EDGES, layer_edges_rect};
-use transform_controls::{active_controls_cursor, begin_transform_controls_at, draw_transform_controls, tool_presses_controls, transform_controls_rect, transform_controls_turn};
+use transform_controls::{
+    active_controls_cursor, begin_transform_controls_at, draw_transform_controls, tool_presses_controls, transform_controls_rect, transform_controls_turn,
+};
 #[cfg(test)]
 use transform_controls::{transform_controls_cursor, transform_controls_hit, transform_controls_layers};
 pub use view_xform::{ViewXform, doc_point_at, fill_view, fit_view};

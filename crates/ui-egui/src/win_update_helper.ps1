@@ -1,4 +1,4 @@
-# PhotoCraft CAT Windows 자체 업데이트 도우미 (win_update.rs 가 임시 폴더에 써서 실행한다).
+# PhotoCAT Windows 자체 업데이트 도우미 (win_update.rs 가 임시 폴더에 써서 실행한다).
 # 앱 프로세스가 끝나기를 기다린 뒤, 서명 확인을 마친 포터블 zip 을 설치 폴더에 덮어 풀고 앱을 다시 띄운다.
 # 실패하면 이유를 $Log 에 남기고 기존 앱을 다시 띄운다 (다음 실행 때 앱이 알린다).
 param(

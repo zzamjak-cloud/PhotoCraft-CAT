@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# PhotoCraft CAT 포크의 macOS(Apple Silicon) 릴리스 산출물을 만든다. Apple 인증서가 없으므로
+# PhotoCAT 포크의 macOS(Apple Silicon) 릴리스 산출물을 만든다. Apple 인증서가 없으므로
 # ad-hoc 서명(codesign -s -)만 하고 공증하지 않는다.
 #
-#   $DIST/photocraft-cat-<버전>-macos-aarch64.dmg     "PhotoCraft CAT.app" 을 담은 설치용 DMG
+#   $DIST/photocraft-cat-<버전>-macos-aarch64.dmg     "PhotoCAT.app" 을 담은 설치용 DMG
 #   $DIST/photocraft-cat-<버전>-macos-aarch64.tar.gz  앱 자체 업데이트용 (photocraft-cat 바이너리 1개)
 #
 # 사용법: packaging/macos/package-cat.sh [--skip-build]
@@ -24,7 +24,7 @@ done
 
 # craft-update 의 UPDATE_APP.id 와 같아야 한다 (crates/ui-egui/src/lib.rs).
 APP_ID="photocraft-cat"
-APP_NAME="PhotoCraft CAT"
+APP_NAME="PhotoCAT"
 # ai.storyteller.<id> 와 달라야 한다: 같으면 craft-update 가 공식 팀 Developer ID 서명을 요구하는
 # DMG 업데이트 경로를 택해 ad-hoc 빌드는 업데이트할 수 없다. 다르면 번들 안 실행 파일을
 # tarball 의 바이너리로 교체하는 standalone 경로를 탄다.
@@ -55,7 +55,7 @@ rm -rf "$WORK"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/PhotoCraft"
 cp "$ROOT/assets/app-icon/photocraft.icns" "$APP/Contents/Resources/PhotoCraft.icns"
-cp "$ROOT/NOTICE" "$ROOT/ATTRIBUTION.md" "$APP/Contents/Resources/"
+cp "$ROOT/LICENSE-MIT" "$ROOT/LICENSE-APACHE" "$ROOT/NOTICE" "$ROOT/ATTRIBUTION.md" "$APP/Contents/Resources/"
 if [[ -n "${CRAFT_FONTS_DIR:-}" ]]; then
   mkdir -p "$APP/Contents/Resources/Licenses"
   copy_font_licences "$APP/Contents/Resources/Licenses"

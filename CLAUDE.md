@@ -1,6 +1,6 @@
-# CLAUDE.md — PhotoCraft-CAT 포크
+# CLAUDE.md — PhotoCAT (PhotoCraft 포크)
 
-PhotoCraft(Rust/egui) 개인 포크. CAT 플러그인(Photoshop UXP)을 네이티브 도크 패널 **CAT** (탭: `CAT Tools`, `9-Slice Images`)로 이식한다.
+PhotoCraft(Rust/egui) 비상업 개인 포크. 표시 이름은 **PhotoCAT**, 저장소 이름과 내부 id(`photocraft-cat`, `com.zzamjak.photocraft-cat`, 에셋 파일명, 설정 폴더, `.pcraft`)는 업데이트·호환을 위해 유지한다. ArtCraft 상표 조건에 따라 앱·README 에 ArtCraft 로고와 공식 사이트 링크를 넣지 않는다(출처 문구 "Based on PhotoCraft by the ArtCraft team" 만 허용). CAT 플러그인(Photoshop UXP)을 네이티브 도크 패널 **CAT** (탭: `CAT Tools`, `9-Slice Images`)로 이식한다.
 업스트림 규칙은 `AGENTS.md`. 이 문서는 CAT 작업 규칙만 담는다.
 
 - 주석·설명·커밋 메시지는 한국어, 식별자는 영어. UI 라벨은 CAT 영문 라벨 그대로.
@@ -56,10 +56,10 @@ CAT_SNAPSHOT_DIR=/tmp/x cargo test -p photocraft-ui-egui --lib cat::tests::the_c
 
 ## 릴리스 / 자동 업데이트
 
-- 업데이터(`crates/ui-egui/src/lib.rs` `UPDATE_APP`)는 `zzamjak-cloud/PhotoCraft-CAT` 릴리스만 본다. 앱 id `photocraft-cat`, 이름 `PhotoCraft CAT`. 검증: `cargo test -p photocraft-ui-egui --lib update_app_tests`.
+- 업데이터(`crates/ui-egui/src/lib.rs` `UPDATE_APP`)는 `zzamjak-cloud/PhotoCraft-CAT` 릴리스만 본다. 앱 id `photocraft-cat`, 이름 `PhotoCAT`. 검증: `cargo test -p photocraft-ui-egui --lib update_app_tests`.
 - 버전은 태그가 결정한다(`PHOTOCRAFT_OVERRIDE_VERSION`). 태그는 반드시 `vX.Y.Z` (꼬리표 금지: craft-update 가 사전 릴리스는 제안하지 않음), 이전 태그보다 커야 한다. Cargo.toml 버전은 0.19.0 그대로 둔다.
 - 릴리스: `git tag v0.19.1 && git push origin v0.19.1` → Actions `Release` 가 macOS(arm64)·Windows(x64) 빌드 후 릴리스에 에셋 첨부. 수동: `gh workflow run release.yml -f version=0.19.1`.
 - 로컬 패키징: `packaging/macos/package-cat.sh` (ad-hoc 서명 .app/.dmg/.tar.gz → `dist/release/`), Windows 는 `packaging/windows/package-cat.ps1 -Version X.Y.Z`.
-- 서명 없음: macOS 첫 실행은 우클릭 → 열기(또는 시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기", 안 되면 `xattr -dr com.apple.quarantine "/Applications/PhotoCraft CAT.app"`). Windows 는 SmartScreen "추가 정보 → 실행".
+- 서명 없음: macOS 첫 실행은 우클릭 → 열기(또는 시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기", 안 되면 `xattr -dr com.apple.quarantine /Applications/PhotoCAT.app`). Windows 는 SmartScreen "추가 정보 → 실행".
 - 자동 설치: macOS 는 craft-update(번들 id `com.zzamjak.photocraft-cat` 이 DMG 경로를 피해 tarball 로 실행 파일 교체). Windows 는 craft-update 가 Authenticode 서명을 요구하므로 포크 전용 `crates/ui-egui/src/win_update.rs` 를 쓴다(QuickFolder/Tauri 방식): 릴리스 job 이 포터블 zip 을 Ed25519 키로 서명해 `<zip>.sig` 를 올리고, 앱은 내장 `PUBLIC_KEY` 로 확인 후 도우미 PowerShell(`win_update_helper.ps1`)이 앱 종료 뒤 덮어 풀고 재실행. 실패 사유는 다음 실행 때 상태 표시줄에 뜬다.
 - 서명 키: 개인키 GitHub Secret `UPDATE_SIGNING_KEY`(Ed25519 PEM, 로컬 백업 `~/.config/photocraft-cat/update-signing-key.pem`). 시크릿이 없으면 Release 의 서명 단계가 실패한다. 키를 바꾸면 `PUBLIC_KEY` 도 바꾸고, 이전 버전 사용자는 수동 설치가 한 번 필요하다.
