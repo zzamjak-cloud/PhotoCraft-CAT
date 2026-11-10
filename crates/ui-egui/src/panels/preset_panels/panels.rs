@@ -447,6 +447,19 @@ pub(super) fn new_tool_preset_params(app: &PhotocraftApp, tool: Tool) -> Value {
     json!({"name": tool.label(), "tool": tool_id(tool), "options": {"toolOptions": own}})
 }
 
+/// Tool Presets 목록에서 끄는 프리셋 이름.
+#[derive(Clone, Debug)]
+struct ToolPresetDrag(String);
+
+/// `dragged` 를 `target` 의 앞(`after` false) 또는 뒤에 놓을 때 `tool.presets.edit` move 의
+/// `index` (끌어 온 항목을 뺀 뒤의 위치). 제자리면 `None`.
+pub(super) fn reorder_index(names: &[String], dragged: &str, target: &str, after: bool) -> Option<usize> {
+    let from = names.iter().position(|n| n == dragged)?;
+    let to = names.iter().position(|n| n == target)? + usize::from(after);
+    let at = if from < to { to - 1 } else { to };
+    (at != from).then_some(at)
+}
+
 /// Tool Presets 푸터(체크박스·버튼 한 줄)에 남겨 두는 높이.
 const TOOL_PRESETS_FOOTER_H: f32 = 34.0;
 
@@ -459,18 +472,35 @@ pub fn tool_presets_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     let selected = app.ui.presets_ui.selected.get("toolPresets").cloned();
     let mut action: Option<(String, Value)> = None;
     let mut pick: Option<String> = None;
-    // Rename field.
+    // 이름 입력: 레이어 이름 변경처럼 Enter·Tab·다른 곳 클릭은 확정, Esc 만 취소한다.
+    // 포커스는 처음 한 번만 요청한다(매 프레임 요청하면 포커스를 잃는 클릭이 입력을 버렸다).
     if let Some((_, key, mut text)) = app.ui.presets_ui.renaming.clone().filter(|r| r.0 == "toolPresets") {
+        let id = egui::Id::unique("tool-preset-rename-field");
+        let focused_key = id.with("focused");
         ui.horizontal(|ui| {
             let name_label = ui.label(egui::RichText::new(tl!("Name:")).color(t.text_dim).size(11.5));
-            let r = ui.add(egui::TextEdit::singleline(&mut text).desired_width(ui.available_width() - 4.0)).labelled_by(name_label.id);
-            if !r.has_focus() && !r.lost_focus() {
+            let r = ui.add(egui::TextEdit::singleline(&mut text).id(id).desired_width(ui.available_width() - 4.0)).labelled_by(name_label.id);
+            let ctx = ui.ctx().clone();
+            let started = ctx.data(|d| d.get_temp::<String>(focused_key)).as_deref() == Some(key.as_str());
+            if !started {
                 r.request_focus();
+                // Photoshop 처럼 이름 전체를 선택해 바로 덮어 쓸 수 있게 한다.
+                if let Some(mut state) = egui::TextEdit::load_state(&ctx, id) {
+                    let all = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(text.chars().count()));
+                    state.cursor.set_char_range(Some(all));
+                    state.store(&ctx, id);
+                }
+                ctx.data_mut(|d| d.insert_temp(focused_key, key.clone()));
+                app.ui.presets_ui.renaming = Some(("toolPresets".into(), key.clone(), text.clone()));
+                return;
             }
-            if r.lost_focus() {
+            let (enter, tab, esc) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Tab), i.key_pressed(egui::Key::Escape)));
+            if esc || enter || tab || r.lost_focus() || !r.has_focus() {
                 app.ui.presets_ui.renaming = None;
-                if ui.input(|i| i.key_pressed(egui::Key::Enter)) && !text.trim().is_empty() {
-                    action = Some(("tool.presets.edit".into(), json!({"action": "rename", "preset": key, "name": text.trim()})));
+                ctx.data_mut(|d| d.remove::<String>(focused_key));
+                let name = text.trim();
+                if !esc && !name.is_empty() && name != key {
+                    action = Some(("tool.presets.edit".into(), json!({"action": "rename", "preset": key, "name": name})));
                 }
             } else {
                 app.ui.presets_ui.renaming = Some(("toolPresets".into(), key.clone(), text.clone()));
@@ -479,13 +509,21 @@ pub fn tool_presets_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     }
     // 목록은 패널 높이를 따라 늘어나고, 아래 푸터(Current Tool Only · + · 삭제)는 항상 보인다.
     let list_h = (ui.available_height() - TOOL_PRESETS_FOOTER_H).max(72.0);
+    let all_names: Vec<String> = app.session.presets.tool_presets.iter().map(|p| p.name.clone()).collect();
+    let sort_item = |ui: &mut egui::Ui, action: &mut Option<(String, Value)>| {
+        if ui.button(tl!("Sort by Name")).clicked() {
+            *action = Some(("tool.presets.edit".into(), json!({"action": "sort"})));
+            ui.close();
+        }
+    };
     egui::ScrollArea::vertical().id_salt("tool-presets").max_height(list_h).min_scrolled_height(list_h.min(72.0)).auto_shrink([false, true]).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
         if items.is_empty() {
             empty(ui, if only { tl!("No presets for the current tool.") } else { tl!("No tool presets.") });
         }
         for (name, tool) in &items {
-            let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click());
+            let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click_and_drag());
+            resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, selected.as_deref() == Some(name), name));
             if selected.as_deref() == Some(name) {
                 ui.painter().rect_filled(r, 0.0, t.row_selected);
             } else if resp.hovered() {
@@ -497,6 +535,20 @@ pub fn tool_presets_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
             if resp.clicked() {
                 pick = Some(name.clone());
             }
+            // 끌어서 순서 바꾸기: 놓은 행의 위/아래 절반에 따라 그 앞/뒤로 옮긴다.
+            resp.dnd_set_drag_payload(ToolPresetDrag(name.clone()));
+            let after = ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| p.y > r.center().y);
+            if let Some(dragged) = resp.dnd_hover_payload::<ToolPresetDrag>()
+                && dragged.0 != *name
+            {
+                let y = if after { r.bottom() } else { r.top() };
+                ui.painter().hline(r.x_range(), y, egui::Stroke::new(2.0, t.accent));
+            }
+            if let Some(dragged) = resp.dnd_release_payload::<ToolPresetDrag>()
+                && let Some(index) = reorder_index(&all_names, &dragged.0, name, after)
+            {
+                action = Some(("tool.presets.edit".into(), json!({"action": "move", "preset": dragged.0, "index": index})));
+            }
             resp.context_menu(|ui| {
                 if ui.button(tl!("Rename Tool Preset…")).clicked() {
                     app.ui.presets_ui.renaming = Some(("toolPresets".into(), name.clone(), name.clone()));
@@ -506,7 +558,15 @@ pub fn tool_presets_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                     action = Some(("tool.presets.edit".into(), json!({"action": "delete", "preset": name})));
                     ui.close();
                 }
+                ui.separator();
+                sort_item(ui, &mut action);
             });
+        }
+        // 목록 아래 빈 곳의 메뉴에서도 이름순 정렬.
+        let rest = ui.available_size_before_wrap();
+        if rest.y > 0.0 {
+            let (_, bg) = ui.allocate_exact_size(vec2(ui.available_width(), rest.y), Sense::click());
+            bg.context_menu(|ui| sort_item(ui, &mut action));
         }
     });
     ui.add_space(4.0);

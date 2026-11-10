@@ -190,11 +190,28 @@ fn select(s: &mut Session, p: &Value) -> Result<Value> {
 fn edit(s: &mut Session, p: &Value) -> Result<Value> {
     const CMD: &str = "tool.presets.edit";
     let action = req_str(p, "action", CMD)?.to_string();
-    if !matches!(action.as_str(), "rename" | "delete") {
-        return Err(bad(CMD, "tool presets support rename and delete"));
+    if !matches!(action.as_str(), "rename" | "delete" | "move" | "sort") {
+        return Err(bad(CMD, "tool presets support rename, delete, move and sort"));
     }
     if action == "rename" {
         checked_name(req_str(p, "name", CMD)?, CMD)?;
+    }
+    if action == "sort" {
+        s.presets.tool_presets.sort_by(|a, b| natural_cmp(&a.name, &b.name));
+        s.presets_changed();
+        return Ok(json!({"presets": s.presets.tool_presets.len()}));
+    }
+    if action == "move" {
+        // 툴 프리셋은 그룹이 없는 단일 목록이라 같은 목록 안에서 위치만 바꾼다.
+        let name = req_str(p, "preset", CMD)?;
+        let index = p.get("index").and_then(Value::as_u64).ok_or_else(|| bad(CMD, "move needs `index`"))?;
+        let list = &mut s.presets.tool_presets;
+        let from = list.iter().position(|t| t.name == name).ok_or_else(|| bad(CMD, format!("no preset \"{name}\"")))?;
+        let item = list.remove(from);
+        let at = usize::try_from(index).unwrap_or(usize::MAX).min(list.len());
+        list.insert(at, item);
+        s.presets_changed();
+        return Ok(json!({"name": name, "index": at}));
     }
     let mut groups = vec![Group::new("", std::mem::take(&mut s.presets.tool_presets))];
     let r = edit_groups(&mut groups, &action, p, CMD);
@@ -202,6 +219,44 @@ fn edit(s: &mut Session, p: &Value) -> Result<Value> {
     let r = r?;
     s.presets_changed();
     Ok(r)
+}
+
+/// 파일 탐색기식 이름 순서: 숫자 묶음은 값으로(`Brush 2` < `Brush 10`), 나머지는 대소문자
+/// 무시. 그렇게 같으면 원문으로 비교해 전순서를 유지한다.
+fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    fn digits(it: &mut std::iter::Peekable<std::str::Chars<'_>>) -> String {
+        let mut s = String::new();
+        while let Some(c) = it.peek().copied().filter(char::is_ascii_digit) {
+            s.push(c);
+            it.next();
+        }
+        s
+    }
+    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
+    loop {
+        match (x.peek().copied(), y.peek().copied()) {
+            (None, None) => return a.cmp(b),
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
+                let (m, n) = (digits(&mut x), digits(&mut y));
+                let (m, n) = (m.trim_start_matches('0'), n.trim_start_matches('0'));
+                match m.len().cmp(&n.len()).then_with(|| m.cmp(n)) {
+                    Ordering::Equal => {}
+                    o => return o,
+                }
+            }
+            (Some(c), Some(d)) => {
+                x.next();
+                y.next();
+                match c.to_lowercase().cmp(d.to_lowercase()) {
+                    Ordering::Equal => {}
+                    o => return o,
+                }
+            }
+        }
+    }
 }
 
 fn reset(s: &mut Session, _: &Value) -> Result<Value> {
@@ -247,7 +302,7 @@ pub fn specs() -> Vec<CommandSpec> {
             label: "Edit Tool Presets",
             menu: &[],
             shortcut: None,
-            params: r##"{"action":"rename|delete","preset":name|[names],"name":str (rename)}"##,
+            params: r##"{"action":"rename|delete|move|sort","preset":name|[names] (rename/delete/move),"name":str (rename),"index":n (move: the list position after it is taken out)} (sort: by name, numbers by value)"##,
             enabled: always,
             run: edit,
             journal: true,

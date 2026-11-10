@@ -896,3 +896,21 @@ fn export_presets_survive_a_presets_json_round_trip() {
     assert_eq!(restored.presets.export_presets[0].name, "Web");
     assert_eq!(restored.presets.export_presets[0].settings.format, "jpg");
 }
+
+/// 툴 프리셋은 끌어서 순서를 바꾸고(`move`), 이름순(숫자는 값으로)으로 정렬할 수 있다.
+#[test]
+fn tool_presets_move_and_sort_by_name() {
+    let mut s = Session::new();
+    s.presets.tool_presets.clear();
+    for n in ["b 10", "B 2", "a"] {
+        s.execute("tool.presets.new", json!({"name": n, "tool": "brush"})).unwrap();
+    }
+    let names = |s: &Session| s.presets.tool_presets.iter().map(|p| p.name.clone()).collect::<Vec<_>>();
+    s.execute("tool.presets.edit", json!({"action": "move", "preset": "a", "index": 0})).unwrap();
+    assert_eq!(names(&s), ["a", "b 10", "B 2"]);
+    s.execute("tool.presets.edit", json!({"action": "move", "preset": "a", "index": 9})).unwrap();
+    assert_eq!(names(&s), ["b 10", "B 2", "a"]);
+    assert!(s.execute("tool.presets.edit", json!({"action": "move", "preset": "a"})).is_err());
+    s.execute("tool.presets.edit", json!({"action": "sort"})).unwrap();
+    assert_eq!(names(&s), ["a", "B 2", "b 10"]);
+}

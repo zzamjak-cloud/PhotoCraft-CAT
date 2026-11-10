@@ -757,6 +757,10 @@ fn canvas_drop_rect(app: &PhotocraftApp) -> egui::Rect {
 }
 
 #[cfg(test)]
+#[path = "preset_panels/tool_preset_tests.rs"]
+mod tool_preset_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::menus::invoke;
