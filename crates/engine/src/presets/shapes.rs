@@ -17,6 +17,8 @@ use crate::commands::CommandSpec;
 use crate::vector_cmds::path_json;
 use crate::{EngineError, Result, Session};
 
+mod csh;
+
 /// Group listing Edit › Define Custom Shape results (`EditState::custom_shapes`).
 pub const CUSTOM_GROUP: &str = "Custom Shapes";
 
@@ -24,6 +26,9 @@ pub const CUSTOM_GROUP: &str = "Custom Shapes";
 pub struct ShapePreset {
     pub name: String,
     pub path: Path,
+    /// An imported library's opaque identity; old and locally drawn presets need none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 }
 
 impl Named for ShapePreset {
@@ -186,7 +191,7 @@ fn shout() -> String {
 /// Built-in groups (our own drawings).
 pub fn builtin() -> Vec<Group<ShapePreset>> {
     let mk = |list: Vec<(&str, String)>| -> Vec<ShapePreset> {
-        list.into_iter().filter_map(|(n, src)| parse(&src).ok().map(|path| ShapePreset { name: n.into(), path })).collect()
+        list.into_iter().filter_map(|(n, src)| parse(&src).ok().map(|path| ShapePreset { name: n.into(), path, id: None })).collect()
     };
     let s = |x: &str| x.to_string();
     vec![
@@ -278,7 +283,7 @@ pub fn builtin() -> Vec<Group<ShapePreset>> {
 /// Every shape the panel shows: the preset groups plus Define Custom Shape results.
 pub fn all_groups(s: &Session) -> Vec<Group<ShapePreset>> {
     let mut g = s.presets.shapes.clone();
-    let custom: Vec<ShapePreset> = s.edit_state.custom_shapes.iter().map(|c| ShapePreset { name: c.name.clone(), path: c.path.clone() }).collect();
+    let custom: Vec<ShapePreset> = s.edit_state.custom_shapes.iter().map(|c| ShapePreset { name: c.name.clone(), path: c.path.clone(), id: None }).collect();
     if !custom.is_empty() {
         g.push(Group::new(CUSTOM_GROUP, custom));
     }
@@ -289,6 +294,24 @@ fn lookup(s: &Session, name: &str, group: Option<&str>, cmd: &str) -> Result<Sha
     let groups = all_groups(s);
     let (gi, ii) = find(&groups, name, group).ok_or_else(|| bad(cmd, format!("no shape \"{name}\" (see shape.presets.list)")))?;
     Ok(groups[gi].items[ii].clone())
+}
+
+/// IDs select the actual installed asset. A missing ID never falls through to a colliding name.
+pub(crate) fn filter_path(s: &Session, p: &Value) -> Result<Path> {
+    const CMD: &str = "filter.blur.shapeBlur";
+    if let Some(value) = p.get("shapeId") {
+        let id = value.as_str().filter(|id| !id.is_empty()).ok_or_else(|| bad(CMD, "shapeId must be a nonempty string"))?;
+        let mut matches = s.presets.shapes.iter().flat_map(|g| &g.items).filter(|shape| shape.id.as_deref() == Some(id));
+        let found = matches.next().ok_or_else(|| bad(CMD, format!("no installed shape with id \"{id}\"")))?;
+        // Reimporting an unchanged library adds another display name for the same asset.
+        // Different geometry under one ID is ambiguous and must not pick the first match.
+        if matches.any(|shape| shape.path != found.path) {
+            return Err(bad(CMD, format!("different installed shapes have id \"{id}\"")));
+        }
+        return Ok(found.path.clone());
+    }
+    let name = p.get("shapeName").and_then(Value::as_str).ok_or_else(|| bad(CMD, "a custom shape needs shapeId or shapeName"))?;
+    Ok(lookup(s, name, None, CMD)?.path)
 }
 
 /// Coverage (0..1) of `path` fitted into a `size`² swatch with a small margin.
@@ -319,7 +342,17 @@ fn list(s: &mut Session, _: &Value) -> Result<Value> {
     let groups: Vec<Value> = all_groups(s)
         .iter()
         .map(|g| {
-            let items: Vec<Value> = g.items.iter().map(|i| json!({"name": i.name, "subpaths": i.path.subpaths.len()})).collect();
+            let items: Vec<Value> = g
+                .items
+                .iter()
+                .map(|i| {
+                    let mut item = json!({"name": i.name, "subpaths": i.path.subpaths.len()});
+                    if let Some(id) = &i.id {
+                        item["id"] = json!(id);
+                    }
+                    item
+                })
+                .collect();
             json!({"name": g.name, "shapes": items})
         })
         .collect();
@@ -363,6 +396,14 @@ fn place(s: &mut Session, p: &Value) -> Result<Value> {
 
 fn new_preset(s: &mut Session, p: &Value) -> Result<Value> {
     const CMD: &str = "shape.presets.new";
+    let id = match p.get("id") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(id)) if !id.is_empty() => Some(id.clone()),
+        _ => return Err(bad(CMD, "id must be a nonempty string")),
+    };
+    if id.as_deref().is_some_and(|id| s.presets.shapes.iter().flat_map(|g| &g.items).any(|shape| shape.id.as_deref() == Some(id))) {
+        return Err(bad(CMD, "a shape with this id is already installed"));
+    }
     let path = match p.get("path") {
         Some(v @ Value::Object(_)) => crate::vector_cmds::parse_path(v).map_err(|e| bad(CMD, e))?,
         Some(Value::String(src)) if src.trim_start().starts_with(['M', 'O', '!']) => parse(src).map_err(|e| bad(CMD, e))?,
@@ -380,7 +421,7 @@ fn new_preset(s: &mut Session, p: &Value) -> Result<Value> {
     let name = unique_name(&s.presets.shapes, str_param(p, "name").unwrap_or("Shape"));
     let gi = group_index(&mut s.presets.shapes, str_param(p, "group"));
     let group = s.presets.shapes[gi].name.clone();
-    s.presets.shapes[gi].items.push(ShapePreset { name: name.clone(), path });
+    s.presets.shapes[gi].items.push(ShapePreset { name: name.clone(), path, id });
     s.presets_changed();
     Ok(json!({"name": name, "group": group}))
 }
@@ -427,68 +468,16 @@ fn reset(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(json!({"groups": s.presets.shapes.len()}))
 }
 
-/// Photoshop 사용자 정의 셰이프(`.csh`) 가져오기: 파일 폴더마다 그룹 하나
-/// (폴더 경로, 폴더가 없으면 `파일명`), 셰이프는 100 상자에 맞춰 넣는다.
-fn import_csh(s: &mut Session, p: &Value) -> Result<Value> {
-    const CMD: &str = "shape.presets.importCsh";
-    let (bytes, stem) = crate::preset_import_cmds::file_bytes(p, CMD, ".csh file")?;
-    let base = match str_param(p, "group").map(str::trim) {
-        Some(g) if !g.is_empty() => g.to_string(),
-        _ if !stem.trim().is_empty() => stem.trim().to_string(),
-        _ => "Imported Shapes".to_string(),
-    };
-    let f = photocraft_psd::csh::parse(&bytes).map_err(|e| bad(CMD, format!("not a readable custom shape file (.csh): {e}")))?;
-    let mut warnings = f.warnings.clone();
-    // 폴더 경로 → 셰이프들 (파일 순서 유지).
-    let mut by_folder: Vec<(Vec<String>, Vec<ShapePreset>)> = Vec::new();
-    for (i, sh) in f.shapes.iter().enumerate() {
-        let (w, h) = sh.size();
-        let path = photocraft_io::vector_map::path_from_records(&sh.path, w, h);
-        if path.is_empty() {
-            warnings.push(format!("shape \"{}\": empty path; skipped", sh.name));
-            continue;
-        }
-        let path = fit(&path, [0.0, 0.0, 100.0, 100.0], true);
-        let folder = f.folders.get(i).cloned().unwrap_or_default();
-        let item = ShapePreset { name: sh.name.clone(), path };
-        match by_folder.iter_mut().find(|(k, _)| *k == folder) {
-            Some((_, items)) => items.push(item),
-            None => by_folder.push((folder, vec![item])),
-        }
-    }
-    if by_folder.is_empty() {
-        return Err(bad(CMD, "the file holds no usable shapes"));
-    }
-    let mut groups = Vec::new();
-    let mut count = 0;
-    for (folder, items) in by_folder {
-        // 폴더가 있으면 폴더 경로만 그룹 이름으로 쓴다 (파일명 접두사는 목록만 길게 만든다).
-        let name = if folder.is_empty() { base.clone() } else { folder.join(" / ") };
-        let name = super::gradients::unique_group(&s.presets.shapes, &name);
-        s.presets.shapes.push(Group::new(&name, Vec::new()));
-        let gi = s.presets.shapes.len() - 1;
-        for mut item in items {
-            // 이름은 라이브러리 전체에서 유일하게 (place 가 이름으로 찾는다).
-            item.name = unique_name(&s.presets.shapes, &item.name);
-            if let Some(g) = s.presets.shapes.get_mut(gi) {
-                g.items.push(item);
-                count += 1;
-            }
-        }
-        groups.push(name);
-    }
-    s.presets_changed();
-    Ok(json!({"groups": groups, "count": count, "warnings": warnings}))
-}
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
+        csh::spec(),
         CommandSpec {
             id: "shape.presets.list",
             label: "Shape Presets",
             menu: &[],
             shortcut: None,
-            params: "{} → {groups:[{name,shapes:[{name,subpaths}]}]}",
+            params: "{} → {groups:[{name,shapes:[{name,id?,subpaths}]}]}",
             enabled: always,
             run: list,
             journal: false,
@@ -508,7 +497,7 @@ pub fn specs() -> Vec<CommandSpec> {
             label: "New Shape Preset",
             menu: &[],
             shortcut: None,
-            params: r##"{"name":str="Shape","group":name?,"path":{…path}|"M x y L …" (preset path language)|"work"|saved path name? (default: work path, active shape layer or vector mask)}"##,
+            params: r##"{"name":str="Shape","id":str? (an imported library's opaque identity),"group":name?,"path":{…path}|"M x y L …" (preset path language)|"work"|saved path name? (default: work path, active shape layer or vector mask)}"##,
             enabled: always,
             run: new_preset,
             journal: true,
@@ -521,16 +510,6 @@ pub fn specs() -> Vec<CommandSpec> {
             params: super::GROUP_EDIT_PARAMS,
             enabled: always,
             run: edit,
-            journal: true,
-        },
-        CommandSpec {
-            id: "shape.presets.importCsh",
-            label: "Import Shapes…",
-            menu: &[],
-            shortcut: None,
-            params: r##"{"path":".csh file"?,"data":base64 bytes?,"group":string?=file name} → {groups, count, warnings} (one group per folder of the file)"##,
-            enabled: always,
-            run: import_csh,
             journal: true,
         },
         CommandSpec {

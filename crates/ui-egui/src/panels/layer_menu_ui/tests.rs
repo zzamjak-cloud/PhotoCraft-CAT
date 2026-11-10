@@ -271,9 +271,35 @@ fn edit_contents_is_available_only_for_smart_objects() {
     let ids: Vec<_> = entries(&layer(&s), false, false).into_iter().flatten().map(|e| e.1).collect();
     let edit = ids.iter().position(|id| *id == "layer.smartObjects.editContents").expect("Edit Contents entry");
     assert_eq!(
-        ids[edit + 1..edit + 5],
-        ["layer.smartObjects.replaceContents", "layer.smartObjects.relinkToFile", "layer.smartObjects.convertToLayers", "layer.rasterize.smartObject"]
+        ids[edit + 1..edit + 6],
+        [
+            "layer.smartObjects.resetTransform",
+            "layer.smartObjects.replaceContents",
+            "layer.smartObjects.relinkToFile",
+            "layer.smartObjects.convertToLayers",
+            "layer.rasterize.smartObject"
+        ],
+        "Reset Transform follows Edit Contents, as in the reference flyout"
     );
+}
+
+/// A type layer's menu offers Photoshop's outline conversions after Rasterize Type, and Convert
+/// to Shape from it turns the text into a shape layer.
+#[test]
+fn type_layer_menu_converts_to_shape() {
+    let mut s = photocraft_engine::Session::new();
+    s.execute("file.new", json!({"width": 64, "height": 48})).unwrap();
+    s.execute("type.create", json!({"text": "Hi", "size": 24, "x": 8, "y": 32})).unwrap();
+    let layer = |s: &photocraft_engine::Session| {
+        let st = s.active().unwrap();
+        st.doc.layer(st.active_layer.unwrap()).unwrap().clone()
+    };
+    let ids: Vec<_> = entries(&layer(&s), false, false).into_iter().flatten().map(|e| e.1).collect();
+    let r = ids.iter().position(|id| *id == "layer.rasterize.type").expect("Rasterize Type entry");
+    assert_eq!(ids[r + 1..r + 3], ["type.createWorkPath", "type.convertToShape"]);
+    assert!(!entries(&layer(&s), true, false).iter().flatten().any(|e| e.1 == "type.convertToShape"), "the selection menu keeps one Rasterize item");
+    s.execute("type.convertToShape", json!({})).unwrap();
+    assert!(matches!(layer(&s).content, LayerContent::Shape(_)));
 }
 
 /// Right-clicking inside a multi-layer selection offers one Rasterize item for the whole
@@ -289,12 +315,14 @@ fn multi_selection_menu_rasterizes_the_selection() {
     let smart = st.doc.layer(st.active_layer.unwrap()).unwrap().clone();
     let ids = |multi| entries(&smart, multi, false).into_iter().flatten().map(|e| e.1).collect::<Vec<_>>();
     assert!(ids(false).contains(&"layer.smartObjects.editContents"), "a single smart object keeps its items");
+    assert!(ids(false).contains(&"layer.smartObjects.resetTransform"), "and its Reset Transform");
     let multi = ids(true);
     assert!(multi.contains(&"layer.rasterize.layer"));
     for single in [
         "layer.rasterize.smartObject",
         "layer.rasterize.shape",
         "layer.smartObjects.editContents",
+        "layer.smartObjects.resetTransform",
         "layer.smartObjects.replaceContents",
         "layer.smartObjects.relinkToFile",
         "layer.smartObjects.convertToLayers",
@@ -394,7 +422,7 @@ fn multi_selection_menu_greys_what_acts_on_one_layer() {
         assert!(h.get_by_label(label).accesskit_node().is_disabled(), "{label} works on one layer only");
     }
     for label in [
-        "Quick Export As PNG",
+        "Quick Export as PNG",
         "Export As…",
         "Add Layer Mask",
         "Duplicate Layers…",
@@ -570,23 +598,6 @@ fn every_entry_is_a_known_command() {
     for (_, id) in entries(&l, false, true).into_iter().chain(entries(&l, false, false)).chain(entries(&l, true, false)).chain(effects_entries()).flatten() {
         assert!(crate::menu_catalog::CATALOG.iter().any(|m| m.3 == id) || photocraft_engine::commands::find(id).is_some(), "{id}");
     }
-}
-
-/// 타입 레이어 우클릭 메뉴: Rasterize Type 아래 Create Work Path·Convert to Shape, 실행하면 셰이프 레이어가 된다.
-#[test]
-fn type_layer_menu_converts_to_shape() {
-    let mut app = crate::PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
-    app.run("file.new", serde_json::json!({"width": 200, "height": 100})).unwrap();
-    app.run("type.create", serde_json::json!({"x": 20, "y": 60, "text": "Hi", "size": 36})).unwrap();
-    let st = app.session.active().unwrap();
-    let l = st.doc.layer(st.active_layer.unwrap()).unwrap();
-    let ids: Vec<&str> = entries(l, false, false).into_iter().flatten().map(|e| e.1).collect();
-    let at = ids.iter().position(|id| *id == "layer.rasterize.type").unwrap();
-    assert_eq!(ids[at + 1..at + 3], ["type.createWorkPath", "type.convertToShape"]);
-    assert!(!entries(l, true, false).into_iter().flatten().any(|e| e.1 == "type.convertToShape"));
-    crate::menus::invoke(&mut app, &egui::Context::default(), "type.convertToShape", serde_json::json!({})).unwrap();
-    let st = app.session.active().unwrap();
-    assert!(matches!(st.doc.layer(st.active_layer.unwrap()).unwrap().content, LayerContent::Shape(_)));
 }
 
 /// 셰이프 레이어 우클릭 Outline Stroke: 스트로크가 있을 때만 켜지고, 실행하면 스트로크 모양의 채워진 셰이프가 된다.

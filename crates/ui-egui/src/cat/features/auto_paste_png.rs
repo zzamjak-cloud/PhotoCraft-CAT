@@ -15,7 +15,8 @@ use crate::cat::lib::{layer, pixels};
 
 /// 켜짐 여부 (저장값이 없으면 켜짐; CAT 과 같음)
 pub fn is_enabled(cat: &CatState) -> bool {
-    cat.settings.auto_paste_png.unwrap_or(true)
+    // 앱 기본값은 켜짐. 테스트 빌드는 업스트림 Place 테스트(자유 변형 시작)를 위해 꺼 두고, CAT 테스트가 직접 켠다.
+    cat.settings.auto_paste_png.unwrap_or(!cfg!(test))
 }
 
 /// 켜기/끄기 저장
@@ -87,6 +88,7 @@ mod tests {
     #[test]
     fn placed_png_becomes_original_resolution_pixel_layer() {
         let (mut app, dir) = test_app();
+        set_enabled(&mut app.cat, true);
         new_doc(&mut app, "doc", 100, 80);
         let png = dir.path().join("Hero Icon.png");
         // 캔버스보다 커서 배치 시 축소되는 PNG
@@ -109,13 +111,15 @@ mod tests {
     #[test]
     fn drop_place_path_runs_the_hook() {
         let (mut app, dir) = test_app();
+        set_enabled(&mut app.cat, true);
         new_doc(&mut app, "doc", 60, 60);
         let png = dir.path().join("drop.png");
         write_png(&png, 9, 7, [0, 255, 0, 255]);
         let bytes = std::fs::read(&png).unwrap();
         let ctx = egui::Context::default();
 
-        app.drop_places.push_back(crate::file_open::DropPlace::Bytes("drop.png".into(), bytes.clone()));
+        let doc = app.session.active().unwrap().doc.id;
+        app.drop_places.push_back((doc, crate::file_open::DropPlace::Bytes("drop.png".into(), bytes.clone())));
         app.place_next_dropped(&ctx);
         let l = layer::active_layer(&app).unwrap();
         assert_eq!((l.name.as_str(), l.kind), ("drop", LayerKind::Pixel));
@@ -123,7 +127,7 @@ mod tests {
         assert!(app.ui.transform.is_none());
 
         set_enabled(&mut app.cat, false);
-        app.drop_places.push_back(crate::file_open::DropPlace::Bytes("drop.png".into(), bytes));
+        app.drop_places.push_back((doc, crate::file_open::DropPlace::Bytes("drop.png".into(), bytes)));
         app.place_next_dropped(&ctx);
         assert_eq!(layer::active_layer(&app).unwrap().kind, LayerKind::SmartObject);
     }

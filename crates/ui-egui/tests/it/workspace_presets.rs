@@ -30,8 +30,9 @@ fn layout(app: &PhotocraftApp) -> Value {
     json!({"panels": app.ui.panels, "dockTabs": app.ui.dock_tabs, "dock": app.ui.dock, "timelineOpen": app.ui.timeline.open})
 }
 
+/// PhotoCAT: CAT 도크 그룹은 모든 작업공간에 남으므로 프리셋 비교에서 뺀다.
 fn shown(app: &PhotocraftApp) -> Vec<Group> {
-    app.ui.dock.order().into_iter().filter(|g| g.shown(&app.ui.panels)).collect()
+    app.ui.dock.order().into_iter().filter(|g| *g != Group::Cat && g.shown(&app.ui.panels)).collect()
 }
 
 #[test]

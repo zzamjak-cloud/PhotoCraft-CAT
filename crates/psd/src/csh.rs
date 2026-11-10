@@ -15,6 +15,8 @@ use crate::path::{PathData, RECORD_LEN};
 
 /// 한 파일에서 읽는 최대 셰이프 수.
 pub const MAX_SHAPES: usize = 100_000;
+/// 받아들이는 최대 파일 크기.
+pub const MAX_FILE_BYTES: usize = 64 << 20;
 
 /// 셰이프 하나.
 #[derive(Debug, Clone, PartialEq)]
