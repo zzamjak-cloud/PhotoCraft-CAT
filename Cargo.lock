@@ -5830,6 +5830,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sys-locale",
+ "tar",
  "tempfile",
  "toml",
  "unicode-bidi",

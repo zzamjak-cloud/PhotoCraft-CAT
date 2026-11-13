@@ -56,7 +56,7 @@ fn release_assets_match_each_platform() {
     let r = release(&RELEASE_ASSETS);
     let stems: Vec<&str> = UPDATE_APP.stems().collect();
     let pick = |os, arch, kind| pick_asset(&r, &stems, Platform { os, arch }, &[kind]).map(|(a, _)| a.name.clone());
-    // macOS 자체 업데이트는 번들 id 가 다르므로 standalone(tarball) 경로를 탄다.
+    // macOS 자체 업데이트는 포크 전용 mac_update 가 이 tarball 을 쓴다.
     assert_eq!(pick(Os::MacOs, Arch::Arm64, PackageKind::TarGz).as_deref(), Some("photocraft-cat-0.19.1-macos-aarch64.tar.gz"));
     assert_eq!(pick(Os::MacOs, Arch::Arm64, PackageKind::Dmg).as_deref(), Some("photocraft-cat-0.19.1-macos-aarch64.dmg"));
     assert_eq!(pick(Os::Windows, Arch::X64, PackageKind::PortableZip).as_deref(), Some("photocraft-cat-0.19.1-windows-x64-portable.zip"));

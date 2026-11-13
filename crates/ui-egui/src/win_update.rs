@@ -8,6 +8,8 @@
 //!
 //! 포터블 사본은 이 경로로 설치형으로 전환된다: 도우미가 `PhotoCraftData` 의 설정을 설치형 위치로
 //! 복사한 뒤 설치한다. 이전 버전 앱은 포터블 zip 만 받을 수 있으므로 릴리스에 zip 도 계속 올린다.
+//!
+//! macOS 도 같은 키·창([`WinUpdater`])·실패 기록을 쓰고, 내려받기·교체 준비만 `mac_update` 가 한다.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -30,9 +32,9 @@ const INSTALLED_EXE: &str = "PhotoCAT.exe";
 
 const HELPER: &str = include_str!("win_update_helper.ps1");
 
-/// 이 플랫폼에서 이 모듈이 업데이트를 맡는가 (Windows).
+/// 이 플랫폼에서 포크 업데이터가 업데이트를 맡는가 (Windows, macOS: 설치 준비는 `mac_update`).
 pub fn active() -> bool {
-    cfg!(windows)
+    cfg!(any(windows, target_os = "macos"))
 }
 
 fn repo() -> &'static str {
@@ -70,12 +72,12 @@ pub fn verify(key: &[u8; 32], data: &[u8], sig: &[u8]) -> Result<(), String> {
 }
 
 /// 업데이트 작업 폴더 (임시 폴더 아래).
-fn work_dir() -> PathBuf {
+pub(crate) fn work_dir() -> PathBuf {
     std::env::temp_dir().join(format!("{}-update", crate::UPDATE_APP.id))
 }
 
 /// 도우미가 실패를 남기는 파일.
-fn failure_log() -> PathBuf {
+pub(crate) fn failure_log() -> PathBuf {
     work_dir().join("failed.txt")
 }
 
@@ -88,12 +90,12 @@ pub fn take_failure() -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
-fn agent() -> ureq::Agent {
+pub(crate) fn agent() -> ureq::Agent {
     let tls = ureq::tls::TlsConfig::builder().root_certs(ureq::tls::RootCerts::PlatformVerifier).build();
     ureq::Agent::config_builder().tls_config(tls).timeout_connect(Some(std::time::Duration::from_secs(20))).build().into()
 }
 
-fn download(agent: &ureq::Agent, url: &str, max: u64) -> Result<Vec<u8>, String> {
+pub(crate) fn download(agent: &ureq::Agent, url: &str, max: u64) -> Result<Vec<u8>, String> {
     use std::io::Read;
     let mut res = agent.get(url).call().map_err(|e| format!("couldn't download {url}: {e}"))?;
     let mut out = Vec::new();
@@ -199,6 +201,7 @@ impl WinUpdater {
         let (tx, rx) = channel();
         let version = version.clone();
         let ctx = ctx.clone();
+        let prepare = if cfg!(target_os = "macos") { crate::mac_update::prepare } else { prepare };
         std::thread::spawn(move || {
             let _ = tx.send(prepare(&version));
             ctx.request_repaint();

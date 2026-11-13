@@ -60,8 +60,10 @@ craft-update = { workspace = true }
 # CAT Search icons (Iconify API): craft-update 와 같은 ureq 버전·기능이라 새 크레이트가 늘지 않는다.
 ureq = { version = "3.4", default-features = false, features = ["rustls-no-provider", "_ring", "gzip", "platform-verifier"] }
 rayon = { workspace = true }
-# Windows 자체 업데이트의 Ed25519 서명 확인 (`win_update.rs`): ureq 가 이미 링크하는 버전.
+# Windows·macOS 자체 업데이트의 Ed25519 서명 확인 (`win_update.rs`): ureq 가 이미 링크하는 버전.
 ring = "0.17"
+# macOS 자체 업데이트 tarball 풀기 (`mac_update.rs`): craft-update 가 이미 링크하는 버전.
+tar = { version = "0.4", default-features = false }
 # Safe native UI-language APIs (Windows/macOS); no subprocess or web dependency.
 sys-locale = "=0.3.2"
 

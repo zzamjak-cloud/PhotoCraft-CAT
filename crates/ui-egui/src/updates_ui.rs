@@ -11,7 +11,7 @@ pub(crate) struct Runtime {
     /// The startup prompt and the self-update behind it (desktop).
     #[cfg(not(target_arch = "wasm32"))]
     updater: craft_update::updater::Updater,
-    /// Windows: 서명 키로 확인하는 포크 전용 업데이터 (`win_update`).
+    /// Windows·macOS: 서명 키로 확인하는 포크 전용 업데이터 (`win_update`, `mac_update`).
     #[cfg(not(target_arch = "wasm32"))]
     win: crate::win_update::WinUpdater,
     /// What the last self-update came to, shown in the result window until it is closed.
@@ -363,14 +363,18 @@ mod tests {
             .send(Ok(Some(Release { version: "99.0.0".into(), url: "https://github.com/storytold/photocraft/releases/tag/v99.0.0".into() })))
             .unwrap();
         at(&mut app, &ctx, 1.0);
-        assert!(app.updates_rt.updater.prompt_open(), "startup prompt initialized on available release");
+        // Windows·macOS 는 포크 전용 업데이터가 창을 띄운다.
+        let prompt_open = |app: &PhotocraftApp| {
+            if crate::win_update::active() { app.updates_rt.win.prompt_open() } else { app.updates_rt.updater.prompt_open() }
+        };
+        assert!(prompt_open(&app), "startup prompt initialized on available release");
 
         // Rendering show() renders the prompt modal
         let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
             show(&mut app, ui.ctx());
         });
         output.textures_delta.clear();
-        assert!(app.updates_rt.updater.prompt_open());
+        assert!(prompt_open(&app));
     }
 
     #[cfg(not(target_arch = "wasm32"))]

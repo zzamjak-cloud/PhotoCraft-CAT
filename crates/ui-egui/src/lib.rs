@@ -69,6 +69,8 @@ pub use titlebar::{Caption, CaptionFamily, CaptionIcon, CaptionIcons, CaptionSty
 pub(crate) mod tool_memory;
 pub mod updates_ui;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod mac_update;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod win_update;
 pub mod widgets;
 pub mod work_area;

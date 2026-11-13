@@ -26,8 +26,8 @@ done
 APP_ID="photocraft-cat"
 APP_NAME="PhotoCAT"
 # ai.storyteller.<id> 와 달라야 한다: 같으면 craft-update 가 공식 팀 Developer ID 서명을 요구하는
-# DMG 업데이트 경로를 택해 ad-hoc 빌드는 업데이트할 수 없다. 다르면 번들 안 실행 파일을
-# tarball 의 바이너리로 교체하는 standalone 경로를 탄다.
+# DMG 업데이트 경로를 택해 ad-hoc 빌드는 업데이트할 수 없다. 자체 업데이트는 포크 전용
+# crates/ui-egui/src/mac_update.rs 가 서명된 tarball 로 번들 안 실행 파일을 교체한다.
 BUNDLE_ID="com.zzamjak.photocraft-cat"
 
 export MACOSX_DEPLOYMENT_TARGET=11.0
@@ -73,7 +73,8 @@ codesign --force --deep --sign - --timestamp=none "$APP"
 codesign --verify --strict --deep --verbose=2 "$APP"
 
 # ---- 자체 업데이트용 tarball ----------------------------------------------------------------------
-# craft-update 는 tarball 에서 이름이 <id> 인 파일을 꺼내 실행 중인 실행 파일 위에 덮어쓴다.
+# mac_update.rs 가 tarball 에서 이름이 <id> 인 파일을 꺼내 번들의 Contents/MacOS/PhotoCraft 를 교체한다.
+# 릴리스 워크플로가 tarball 을 Ed25519 로 서명해 .tar.gz.sig 를 함께 올린다.
 TAR_DIR="$WORK/tar"
 mkdir -p "$TAR_DIR"
 cp "$APP/Contents/MacOS/PhotoCraft" "$TAR_DIR/$APP_ID"
