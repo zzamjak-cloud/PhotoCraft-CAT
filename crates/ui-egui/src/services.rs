@@ -362,6 +362,13 @@ pub type LoadTextFn = Box<dyn FnMut() -> Option<String>>;
 /// Persist the preferences text.
 pub type SaveTextFn = Box<dyn FnMut(&str) -> Result<(), String>>;
 
+/// 스레드 간에 넘길 수 있는 환경설정 저장소 접근 (`Services::prefs_io`).
+#[derive(Clone)]
+pub struct PrefsIo {
+    pub load: std::sync::Arc<dyn Fn() -> Option<String> + Send + Sync>,
+    pub save: std::sync::Arc<dyn Fn(&str) -> Result<(), String> + Send + Sync>,
+}
+
 /// Platform appearance when egui cannot detect it (for example, Wayland without a theme event).
 pub type SystemThemeFn = Box<dyn Fn(&egui::Context) -> Option<egui::Theme>>;
 
@@ -513,6 +520,9 @@ pub struct Services {
     /// the web (see `prefs_ui`).
     pub load_prefs: Option<LoadTextFn>,
     pub save_prefs: Option<SaveTextFn>,
+    /// 워커 스레드에서 쓸 수 있는 환경설정 읽기/쓰기. 있으면 프레임 중 저장을 백그라운드로 돌려
+    /// 큰 preferences.json 쓰기가 펜 입력을 막지 않게 한다.
+    pub prefs_io: Option<PrefsIo>,
     /// Load/save the bounded deterministic GPU compositor failure memo (native only).
     pub load_gpu_memo: Option<LoadTextFn>,
     pub save_gpu_memo: Option<SaveTextFn>,

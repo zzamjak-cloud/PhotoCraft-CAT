@@ -55,10 +55,38 @@ pub(super) struct SaveRetry {
     notice: Option<u64>,
 }
 
+/// 워커 스레드에서 진행 중인 쓰기: 담은 리비전과, 쓴 값·결과를 돌려받을 채널.
+pub(crate) struct PrefsWrite {
+    rev: u64,
+    rx: std::sync::mpsc::Receiver<(Value, Result<(), String>)>,
+}
+
+/// 진행 중인 백그라운드 쓰기를 다시 확인할 간격(초).
+const WRITE_POLL_S: f64 = 0.05;
+
 /// Save changed preferences. A failed write stays pending and is retried with a backoff (a newer
 /// change retries sooner); the status bar reports the first failure and a notice a persistent
 /// one. Returns the seconds until the next retry while one is pending.
 pub(super) fn persist(app: &mut PhotocraftApp, now: f64) -> Option<f64> {
+    if let Some(w) = app.prefs_rt.prefs_write.take() {
+        match w.rx.try_recv() {
+            Ok((ours, written)) => {
+                let wait = finish_write(app, w.rev, ours, written, now);
+                // 쓰는 동안 바뀐 설정이 있으면 이어서 저장한다.
+                if wait.is_some() || app.session.prefs.rev() == app.prefs_rt.saved_rev {
+                    return wait;
+                }
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                app.prefs_rt.prefs_write = Some(w);
+                return Some(WRITE_POLL_S);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                let ours = app.session.prefs_value();
+                return finish_write(app, w.rev, ours, Err("preferences writer stopped".into()), now);
+            }
+        }
+    }
     let rev = app.session.prefs.rev();
     if rev == app.prefs_rt.saved_rev {
         return None;
@@ -72,7 +100,41 @@ pub(super) fn persist(app: &mut PhotocraftApp, now: f64) -> Option<f64> {
     }
     let ours = app.session.prefs_value();
     // A change that was undone (or set a value to what it already was) leaves nothing to write.
-    let written = if app.prefs_rt.saved_value.as_ref() == Some(&ours) { Ok(()) } else { write_prefs(app, &ours) };
+    if app.prefs_rt.saved_value.as_ref() == Some(&ours) {
+        return finish_write(app, rev, ours, Ok(()), now);
+    }
+    // 파일 읽기·병합·직렬화·쓰기는 수십~수백 ms 걸릴 수 있어(큰 프리셋) 워커 스레드로 넘긴다.
+    let Some(io) = app.services.prefs_io.clone() else {
+        let written = write_prefs(app, &ours);
+        return finish_write(app, rev, ours, written, now);
+    };
+    let base = app.prefs_rt.saved_value.clone();
+    let (tx, rx) = std::sync::mpsc::channel();
+    let spawned = std::thread::Builder::new().name("prefs-save".into()).spawn(move || {
+        let written = merged_text((io.load)(), base.as_ref(), &ours).and_then(|text| (io.save)(&text));
+        let _ = tx.send((ours, written));
+    });
+    if spawned.is_ok() {
+        app.prefs_rt.prefs_write = Some(PrefsWrite { rev, rx });
+        return Some(WRITE_POLL_S);
+    }
+    // 스레드를 못 띄우면 예전처럼 동기로 쓴다.
+    let ours = app.session.prefs_value();
+    let written = write_prefs(app, &ours);
+    finish_write(app, rev, ours, written, now)
+}
+
+/// 진행 중인 백그라운드 쓰기를 끝날 때까지 기다려 결과를 반영한다 (동기 저장 전에).
+fn wait_for_write(app: &mut PhotocraftApp) {
+    if let Some(w) = app.prefs_rt.prefs_write.take() {
+        let (ours, written) = w.rx.recv().unwrap_or_else(|_| (Value::Null, Err("preferences writer stopped".into())));
+        let ours = if ours.is_null() { app.session.prefs_value() } else { ours };
+        finish_write(app, w.rev, ours, written, crate::gpu_canvas::now_ms() / 1000.0);
+    }
+}
+
+/// 쓰기 결과 반영: 성공이면 저장 리비전·병합 기준을 갱신하고, 실패면 재시도 일정을 잡는다.
+fn finish_write(app: &mut PhotocraftApp, rev: u64, ours: Value, written: Result<(), String>, now: f64) -> Option<f64> {
     match written {
         Ok(()) => {
             app.prefs_rt.saved_rev = rev;
@@ -113,8 +175,15 @@ pub(super) fn persist(app: &mut PhotocraftApp, now: f64) -> Option<f64> {
 /// tab, another app window) changed there since this one last loaded or saved them.
 fn write_prefs(app: &mut PhotocraftApp, ours: &Value) -> Result<(), String> {
     let Some(save) = app.services.save_prefs.as_mut() else { return Ok(()) };
-    let stored = app.services.load_prefs.as_mut().and_then(|load| load()).and_then(|t| serde_json::from_str::<Value>(&t).ok());
-    let text = match (stored, &app.prefs_rt.saved_value) {
+    let stored = app.services.load_prefs.as_mut().and_then(|load| load());
+    let text = merged_text(stored, app.prefs_rt.saved_value.as_ref(), ours)?;
+    save(&text)
+}
+
+/// 저장소의 현재 내용(`stored`)에 이 인스턴스의 변경(`base` → `ours`)을 합친 저장할 텍스트.
+fn merged_text(stored: Option<String>, base: Option<&Value>, ours: &Value) -> Result<String, String> {
+    let stored = stored.and_then(|t| serde_json::from_str::<Value>(&t).ok());
+    match (stored, base) {
         (Some(mut theirs @ Value::Object(_)), Some(base)) => {
             let mut base = without_stale_migration(base, &theirs);
             // Older files have no toolColors object. Diff the first saved swatches against
@@ -130,8 +199,7 @@ fn write_prefs(app: &mut PhotocraftApp, ours: &Value) -> Result<(), String> {
         }
         _ => serde_json::to_string_pretty(ours),
     }
-    .map_err(|e| e.to_string())?;
-    save(&text)
+    .map_err(|e| e.to_string())
 }
 
 /// The save base without the shift tool switch migration (#5647) once storage already holds a
@@ -182,6 +250,7 @@ pub(super) fn merge_changes(base: &Value, ours: &Value, theirs: &mut Value) {
 /// Write the preferences now, through the same merge as [`persist`], for recovery choices that
 /// need the result immediately. The pending revision stays unsaved when the write fails.
 pub(crate) fn save_preferences(app: &mut PhotocraftApp) -> Result<(), String> {
+    wait_for_write(app);
     let rev = app.session.prefs.rev();
     let ours = app.session.prefs_value();
     write_prefs(app, &ours)?;

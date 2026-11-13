@@ -2189,13 +2189,13 @@ fn tool_colors_survive_restart_before_the_first_frame() {
     let fg = [0.2, 0.4, 0.6, 0.8];
     let bg = [0.9, 0.7, 0.3, 1.0];
     app.run("tools.setColors", json!({"foreground": fg, "background": bg})).unwrap();
-    crate::tool_memory::persist(&mut app, &ctx);
+    crate::tool_memory::persist_with(&mut app, &ctx, true);
     tick(&mut app, &ctx);
     let (restored, _) = app_with_saved(store.lock().unwrap().clone());
     assert_eq!(restored.session.tools.foreground, fg);
     assert_eq!(restored.session.tools.background, bg);
     let rev = app.session.prefs.rev();
-    crate::tool_memory::persist(&mut app, &ctx);
+    crate::tool_memory::persist_with(&mut app, &ctx, true);
     assert_eq!(app.session.prefs.rev(), rev, "unchanged colours do not rewrite preferences");
 }
 
@@ -2272,12 +2272,12 @@ fn tool_colors_save_changed_cmyk_inks_even_when_rgba_is_unchanged() {
     let ctx = egui::Context::default();
     let rgb = [0.2, 0.4, 0.6];
     app.run("tools.setColors", json!({"foreground": rgb, "foregroundCmyk": [1, 0, 0, 0]})).unwrap();
-    crate::tool_memory::persist(&mut app, &ctx);
+    crate::tool_memory::persist_with(&mut app, &ctx, true);
     tick(&mut app, &ctx);
     let rev = app.session.prefs.rev();
     let inks = [0.1, 0.2, 0.3, 0.4];
     app.run("tools.setColors", json!({"foreground": rgb, "foregroundCmyk": inks})).unwrap();
-    crate::tool_memory::persist(&mut app, &ctx);
+    crate::tool_memory::persist_with(&mut app, &ctx, true);
     assert!(app.session.prefs.rev() > rev);
     tick(&mut app, &ctx);
     let (restored, _) = app_with_saved(store.lock().unwrap().clone());
@@ -2373,4 +2373,32 @@ fn reset_section_on_type_keeps_the_favourite_fonts() {
     assert!(prefs.smart_quotes, "the Type settings are reset");
     assert_eq!(prefs.favorite_fonts, ["Bebas Neue"], "the favourites are kept");
     assert_eq!(stored(&store)["type"]["favoriteFonts"], json!(["Bebas Neue"]));
+}
+
+#[test]
+fn background_prefs_write_lands_off_the_ui_thread_and_exit_waits_for_it() {
+    // 백그라운드 쓰기: 프레임은 바로 돌아오고, 결과는 다음 tick 에서 반영되며, 동기 저장은 진행 중인 쓰기를 기다린다.
+    let (mut app, store) = app_with_store();
+    let (a, b) = (store.clone(), store.clone());
+    app.services.prefs_io = Some(crate::PrefsIo {
+        load: Arc::new(move || a.lock().unwrap().clone()),
+        save: Arc::new(move |s: &str| {
+            std::thread::sleep(std::time::Duration::from_millis(30));
+            *b.lock().unwrap() = Some(s.to_string());
+            Ok(())
+        }),
+    });
+    let ctx = egui::Context::default();
+    tick(&mut app, &ctx);
+    let fg = [0.25, 0.75, 0.5, 1.0];
+    app.run("tools.setColors", json!({"foreground": fg})).unwrap();
+    crate::tool_memory::persist(&mut app, &ctx);
+    tick(&mut app, &ctx);
+    assert_ne!(stored(&store)["toolColors"]["foreground"], json!(fg), "색 저장은 잠시 미뤄진다");
+    crate::tool_memory::persist_with(&mut app, &ctx, true);
+    tick(&mut app, &ctx);
+    assert!(app.prefs_rt.prefs_write.is_some(), "쓰기는 워커 스레드에서 진행된다");
+    crate::tool_memory::save_on_exit(&mut app).unwrap();
+    assert!(app.prefs_rt.prefs_write.is_none());
+    assert_eq!(stored(&store)["toolColors"]["foreground"], json!(fg));
 }

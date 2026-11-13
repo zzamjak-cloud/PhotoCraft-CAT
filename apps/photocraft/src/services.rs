@@ -827,6 +827,11 @@ pub fn native(automation: Option<photocraft_automation::AuthorizedWorkspace>) ->
         load_prefs: Some(Box::new(|| std::fs::read_to_string(prefs_file()?).ok())),
         photoshop_shortcuts: Some(Box::new(|| crate::photoshop_settings::live_keyboard_shortcuts(&|k| std::env::var_os(k)))),
         save_prefs: Some(Box::new(|text: &str| write_atomic(&prefs_file().ok_or("no config directory")?, text.as_bytes()))),
+        // 프레임 중 환경설정 저장은 워커 스레드에서 한다: 큰 파일 쓰기가 펜 입력을 막지 않게.
+        prefs_io: Some(photocraft_ui_egui::PrefsIo {
+            load: Arc::new(|| std::fs::read_to_string(prefs_file()?).ok()),
+            save: Arc::new(|text: &str| write_atomic(&prefs_file().ok_or("no config directory")?, text.as_bytes())),
+        }),
         load_gpu_memo: Some(Box::new(load_gpu_memo_text)),
         save_gpu_memo: Some(Box::new(|text: &str| {
             if text.len() > photocraft_ui_egui::gpu_memo::MAX_GPU_MEMO_BYTES {

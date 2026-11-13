@@ -31,6 +31,8 @@ pub struct Runtime {
     /// This instance's preferences as of `saved_rev`: the base of the three-way merge on save.
     saved_value: Option<Value>,
     save_retry: SaveRetry,
+    /// 워커 스레드에서 진행 중인 환경설정 쓰기.
+    prefs_write: Option<save::PrefsWrite>,
     next_autosave_ms: f64,
     /// Last revision whose recovery file was actually written successfully.
     autosaved: HashMap<DocId, u64>,
@@ -55,6 +57,8 @@ pub struct Runtime {
     pub(crate) selected_tool: Option<crate::state::Tool>,
     pub(crate) tool_colors: Option<[[[f32; 4]; 2]; 2]>,
     pub(crate) tool_cmyk_picks: crate::tool_memory::CmykPicks,
+    /// 아직 기록하지 않은 색과 그 색이 된 시각(초): 색 저장을 잠시 미룬다 (`tool_memory`).
+    pub(crate) tool_colors_seen: Option<([[[f32; 4]; 2]; 2], f64)>,
     pub(crate) group_tools: Option<Vec<crate::state::Tool>>,
     /// The tool owning the session brush and the other tools' brushes, as last remembered.
     pub(crate) tool_brushes: Option<crate::tool_memory::ToolBrushes>,

@@ -74,7 +74,12 @@ fn changed(o: &ToolOptions) -> Value {
 /// pointer. Run every frame, so choices made through the control channel or a tool preset are
 /// remembered too.
 pub fn persist(app: &mut PhotocraftApp, ctx: &egui::Context) {
-    if ctx.input(|i| i.pointer.any_down()) {
+    persist_with(app, ctx, false);
+}
+
+/// `flush` 면 색을 기다리지 않고 바로 기록한다 (종료 시).
+pub(crate) fn persist_with(app: &mut PhotocraftApp, ctx: &egui::Context, flush: bool) {
+    if !flush && ctx.input(|i| i.pointer.any_down()) {
         return;
     }
     let tool = selected(app);
@@ -88,7 +93,7 @@ pub fn persist(app: &mut PhotocraftApp, ctx: &egui::Context) {
             ctx.request_repaint();
         }
     }
-    persist_colors(app, ctx);
+    persist_colors(app, ctx, flush);
     persist_group_tools(app, ctx, tool);
     persist_brushes(app);
     if app.prefs_rt.tool_options.as_ref() == Some(&app.ui.tool_options) {
@@ -108,11 +113,32 @@ fn colors(app: &PhotocraftApp) -> [[[f32; 4]; 2]; 2] {
     if t.mask_targeted { [t.other_colors, current] } else { [current, t.other_colors] }
 }
 
-fn persist_colors(app: &mut PhotocraftApp, ctx: &egui::Context) {
+/// 색이 이만큼(초) 그대로여야 환경설정에 기록한다. 스포이트로 색을 바꾼 직후 펜을 떼자마자
+/// 큰 preferences.json 을 쓰느라 바로 이어지는 붓질이 늦게 시작되지 않게 한다.
+const COLOR_SAVE_IDLE_S: f64 = 1.5;
+
+fn persist_colors(app: &mut PhotocraftApp, ctx: &egui::Context, flush: bool) {
     let now = colors(app);
     if app.prefs_rt.tool_colors == Some(now) && app.prefs_rt.tool_cmyk_picks == app.session.tools.cmyk_picks {
+        app.prefs_rt.tool_colors_seen = None;
         return;
     }
+    if !flush {
+        let t = crate::gpu_canvas::now_ms() / 1000.0;
+        let since = match app.prefs_rt.tool_colors_seen {
+            Some((seen, at)) if seen == now => at,
+            _ => {
+                app.prefs_rt.tool_colors_seen = Some((now, t));
+                t
+            }
+        };
+        let wait = since + COLOR_SAVE_IDLE_S - t;
+        if wait > 0.0 {
+            ctx.request_repaint_after(std::time::Duration::try_from_secs_f64(wait).unwrap_or_default());
+            return;
+        }
+    }
+    app.prefs_rt.tool_colors_seen = None;
     app.prefs_rt.tool_colors = Some(now);
     app.prefs_rt.tool_cmyk_picks = app.session.tools.cmyk_picks.clone();
     let saved = color_value(now, &app.prefs_rt.tool_cmyk_picks);
@@ -275,7 +301,7 @@ fn restore_brushes(app: &mut PhotocraftApp) {
 pub(crate) fn save_on_exit(app: &mut PhotocraftApp) -> Result<(), String> {
     let ctx = egui::Context::default();
     crate::last_brush::persist(app, &ctx);
-    persist(app, &ctx);
+    persist_with(app, &ctx, true);
     crate::prefs_ui::save_preferences(app)
 }
 
