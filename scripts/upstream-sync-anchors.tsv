@@ -1,0 +1,25 @@
+# 원본 병합 뒤에도 남아 있어야 하는 포크 기능: 파일<TAB>정규식<TAB>설명. scripts/upstream-sync.sh verify 가 검사한다.
+crates/ui-egui/src/dock.rs	Group::Cat => \&\["CAT Tools"	CAT 도크 그룹
+crates/ui-egui/src/panels/dock.rs	Group::Cat\)	CAT 레일 버튼
+crates/ui-egui/src/panels/dock.rs	crate::cat::tools_panel	CAT 패널 본문
+crates/ui-egui/src/panels/dock.rs	Group::Presets\)	Tool Presets 도크 탭
+crates/ui-egui/src/panels/panel_docking.rs	"catTools"	CAT 도킹 id
+crates/ui-egui/src/state.rs	pub cat: bool	Panels.cat
+crates/ui-egui/src/menu_catalog.rs	window.panel.cat	Window › CAT 메뉴
+crates/ui-egui/src/menus/invoke.rs	"cat" => "window.toggle.cat"	CAT 메뉴 실행
+crates/ui-egui/src/lib.rs	zzamjak-cloud/PhotoCraft-CAT	업데이트 저장소(UPDATE_APP)
+crates/ui-egui/src/lib.rs	pub mod mac_update	macOS 자체 업데이터
+crates/ui-egui/src/lib.rs	pub mod win_update	Windows 자체 업데이터
+crates/ui-egui/src/lib.rs	pub mod cat	CAT 모듈
+crates/engine/src/session/execute.rs	pub fn edit_coalesced	Undo 한 단계 합치기
+crates/ui-egui/src/menus/native_menu.rs	APP_NAME: &str = "PhotoCAT"	앱 메뉴 이름
+apps/photocraft/src/main.rs	with_title\("PhotoCAT"\)	창 제목
+crates/ui-egui/src/dialogs.rs	About PhotoCAT	About 창
+crates/ui-egui/build.rs	cat_catalog	포크 번역 오버레이
+crates/ui-egui/i18n-cat/ko.tsv	Search Shapes	포크 한국어 번역
+.github/workflows/release.yml	UPDATE_SIGNING_KEY	업데이트 서명
+.github/workflows/release.yml	CRAFT_I18N_DIR	릴리스 번역 포함
+.github/workflows/release.yml	storytold/photocraft.git "refs/tags	원본 태그 릴리스 차단
+packaging/macos/package-cat.sh	CRAFT_I18N_REQUIRED	mac 패키징 번역 필수
+packaging/windows/package-cat.ps1	CRAFT_I18N_REQUIRED	Windows 패키징 번역 필수
+crates/ui-egui/src/panels/dock.rs	\(Group::Cat, 0\)	CAT 탭 분기

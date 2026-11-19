@@ -45,7 +45,7 @@ PhotoCraft(Rust/egui) 비상업 개인 포크. 표시 이름은 **PhotoCAT**, �
 ```bash
 cargo test -p photocraft-ui-egui --lib cat::          # CAT 테스트
 cargo test -p photocraft-ui-egui --lib dock           # 도크 회귀
-cargo build --release -p photocraft                   # 최종 빌드
+cargo build --release -p photocraft                   # 최종 빌드 (번역 포함: CRAFT_I18N_DIR=$PWD/craft-i18n)
 CAT_SNAPSHOT_DIR=/tmp/x cargo test -p photocraft-ui-egui --lib cat::tests::the_cat  # 패널 렌더 PNG
 ```
 
@@ -53,6 +53,20 @@ CAT_SNAPSHOT_DIR=/tmp/x cargo test -p photocraft-ui-egui --lib cat::tests::the_c
 - 테스트 폰트에 한글이 없다: 한국어 모달을 그리는 하네스는 `ctx.set_missing_glyph_policy(Tofu)`.
 - 업스트림 도크 레이아웃 불변식 테스트(dock/panel_docking)는 `panels.cat = false` 로 CAT 그룹을 제외하고 검사한다.
 - GUI PhotoCraft 프로세스를 띄우거나 종료하지 않는다 (사용자가 실행 중일 수 있음).
+
+## 원본 병합 (storytold/photocraft)
+
+원본 **릴리스 태그** 단위로 가져온다(main 은 미릴리스 대규모 구조 변경이 섞임). 도구: `scripts/upstream-sync.sh`.
+
+1. `status` → 새 태그·커밋 수·main 의 대규모 커밋 확인. `check <태그>` → 위험 보고를 보고 사용자와 범위를 정한다.
+2. 브랜치 `merge/upstream-<태그>` 에서 `git merge --no-ff --no-commit refs/upstream-tags/<태그>`.
+3. 충돌 원칙: `Cargo.toml` 버전 0.19.0 유지 · `Cargo.lock` 은 원본 것을 받고 cargo 가 다시 맞춘 작업 트리 lock 을 stage · `release.yml`/`ci.yml` 은 포크 것을 두고 원본의 새 필수 단계(외부 저장소 체크아웃, 환경 변수, `craft-fonts-ref` 변경)만 옮긴다 · 포크가 지운 워크플로는 지운 채로, 원본이 새로 넣은 워크플로는 필요 없으면 지운다 · 원본이 지운/옮긴 파일에 포크 수정이 있으면(`check` 1번) 그 내용을 새 위치로 옮긴다.
+4. `verify` (마커·버전·미추적·lock·`scripts/upstream-sync-anchors.tsv` 포크 기능) → `test` (craft-i18n·craft-fonts 를 rev 대로 받아 회귀 테스트) → 릴리스 빌드 → 별도 리뷰 에이전트 → 커밋.
+5. 포크 기능을 새로 넣으면 `upstream-sync-anchors.tsv` 에 한 줄 추가한다.
+
+- **태그 분리**: 원본 태그는 `refs/upstream-tags/*` 로만 받는다(`remote.upstream.tagOpt --no-tags`). 로컬 `v*` 태그로 섞이면 푸시 시 포크 Release 가 그 번호로 자동 업데이트를 배포한다. `release.yml` 은 원본 태그 번호면 실패한다.
+- **번역**: 카탈로그는 외부 craft-i18n(`craft-i18n.rev`)에서 빌드 때 넣는다(`CRAFT_I18N_DIR`, 없으면 경고만 내고 영어 전용). 포크 전용 번역은 `crates/ui-egui/i18n-cat/<locale>.tsv`, `build.rs` `cat_catalog` 가 그 행과 "PhotoCraft→PhotoCAT" 치환 행을 원본 카탈로그 앞에 붙인다. 화면 문구를 추가하면 `i18n-cat/ko.tsv` 에 번역을 넣는다.
+- i18n 라이브 테스트는 `CRAFT_FONTS_DIR` 없이는 글리프 없음으로 실패한다(`upstream-sync.sh test` 가 설정).
 
 ## 릴리스 / 자동 업데이트
 

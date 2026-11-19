@@ -42,6 +42,17 @@ TARBALL="$DIST/$STEM.tar.gz"
 echo "==> $APP_NAME $VERSION for macOS (aarch64), ad-hoc signed"
 
 if [[ "$SKIP_BUILD" = 0 ]]; then
+  # 번역 카탈로그(craft-i18n)가 없으면 영어 전용으로 빌드되므로, 지정이 없으면 craft-i18n.rev 커밋을 받아 쓴다.
+  if [[ -z "${CRAFT_I18N_DIR:-}" ]]; then
+    I18N_REV="$(tr -d '[:space:]' < "$ROOT/craft-i18n.rev")"
+    export CRAFT_I18N_DIR="$ROOT/craft-i18n"
+    if [[ ! -d "$CRAFT_I18N_DIR/.git" ]]; then
+      git clone --quiet https://github.com/storytold/craft-i18n.git "$CRAFT_I18N_DIR"
+    fi
+    git -C "$CRAFT_I18N_DIR" cat-file -e "$I18N_REV^{commit}" 2>/dev/null || git -C "$CRAFT_I18N_DIR" fetch --quiet origin "$I18N_REV"
+    git -C "$CRAFT_I18N_DIR" checkout --quiet --detach "$I18N_REV"
+  fi
+  export CRAFT_I18N_REQUIRED=1
   (cd "$ROOT" && cargo build --release --locked -p photocraft)
 fi
 BIN="$CARGO_TARGET_DIR/release/photocraft"

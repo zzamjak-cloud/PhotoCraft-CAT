@@ -28,6 +28,23 @@ if (-not $SkipBuild) {
   # MSVC 런타임 정적 링크: VC++ 재배포 패키지 없이 실행된다.
   $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS = '-C target-feature=+crt-static'
   $env:PHOTOCRAFT_OVERRIDE_VERSION = $Version
+  # 번역 카탈로그(craft-i18n)가 없으면 영어 전용으로 빌드되므로, 지정이 없으면 craft-i18n.rev 커밋을 받아 쓴다.
+  if (-not $env:CRAFT_I18N_DIR) {
+    $i18nRev = (Get-Content (Join-Path $Root 'craft-i18n.rev') -Raw).Trim()
+    $env:CRAFT_I18N_DIR = Join-Path $Root 'craft-i18n'
+    if (-not (Test-Path (Join-Path $env:CRAFT_I18N_DIR '.git'))) {
+      git clone --quiet https://github.com/storytold/craft-i18n.git $env:CRAFT_I18N_DIR
+      if ($LASTEXITCODE -ne 0) { throw "craft-i18n clone failed ($LASTEXITCODE)" }
+    }
+    git -C $env:CRAFT_I18N_DIR cat-file -e "$i18nRev^{commit}" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+      git -C $env:CRAFT_I18N_DIR fetch --quiet origin $i18nRev
+      if ($LASTEXITCODE -ne 0) { throw "craft-i18n fetch failed ($LASTEXITCODE)" }
+    }
+    git -C $env:CRAFT_I18N_DIR checkout --quiet --detach $i18nRev
+    if ($LASTEXITCODE -ne 0) { throw "craft-i18n checkout failed ($LASTEXITCODE)" }
+  }
+  $env:CRAFT_I18N_REQUIRED = '1'
   Push-Location $Root
   try {
     cargo build --release --locked -p photocraft --target $Target
