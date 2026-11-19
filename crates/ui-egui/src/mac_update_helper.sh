@@ -25,14 +25,9 @@ fail() {
   exit 1
 }
 
-# 저장 안 한 작업은 앱이 닫히기 전에 처리했다. 10분 안에 닫히지 않으면 포기한다(앱은 계속 실행 중).
-i=0
+# 앱이 닫힐 때까지 기다린다. 저장 확인 창에서 취소하면 앱은 계속 실행되고, 나중에 앱을 닫을 때 설치된다
+# (Windows 도우미와 같다).
 while kill -0 "$pid" 2>/dev/null; do
-  i=$((i + 1))
-  if [ "$i" -gt 3000 ]; then
-    printf '%s\n' "the app did not close, so the update was not installed" >"$log"
-    exit 1
-  fi
   sleep 0.2
 done
 sleep 0.5

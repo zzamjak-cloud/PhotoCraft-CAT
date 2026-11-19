@@ -5,3 +5,10 @@
 	Outline Stroke	윤곽선 만들기
 	Link corner radius values	모서리 반경 값 연결
 	This update switches to the installed version. Your settings are kept.	이번 업데이트부터 설치형으로 전환됩니다. 환경설정은 그대로 유지됩니다.
+	Software Update	소프트웨어 업데이트
+	Update and Restart	업데이트 후 다시 시작
+	Later	나중에
+	Downloading and verifying the update…	업데이트를 내려받아 확인하는 중…
+	{app} {new} is available. You have {current}.	{app} {new} 버전을 사용할 수 있습니다. 현재 버전은 {current}입니다.
+	The last update was not installed: {reason}	지난 업데이트가 설치되지 않았습니다: {reason}
+	You'll be asked to save your documents before the app restarts.	앱을 다시 시작하기 전에 문서 저장 여부를 묻습니다.

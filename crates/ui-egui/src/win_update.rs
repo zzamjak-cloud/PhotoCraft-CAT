@@ -209,7 +209,8 @@ impl WinUpdater {
         self.job = Some(rx);
     }
 
-    /// 창을 그린다. `clean` 이 아니면(저장 안 한 작업) 설치를 시작하지 않는다.
+    /// 창을 그린다. 저장 안 한 작업(`clean` 아님)이 있어도 설치는 시작한다: 준비가 끝나면 앱을 정상 종료
+    /// 경로로 닫으므로 일반 종료와 같은 저장 확인 창이 뜬다.
     pub fn show(&mut self, ctx: &egui::Context, clean: bool) -> Action {
         let mut action = Action::None;
         if let Some(rx) = &self.job
@@ -256,11 +257,11 @@ impl WinUpdater {
                 ui.colored_label(ui.visuals().error_fg_color, e);
             }
             if !clean {
-                ui.label(tl!("Save or close your documents to update now."));
+                ui.label(tl!("You'll be asked to save your documents before the app restarts."));
             }
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                if ui.add_enabled(clean && !working, egui::Button::new(tl!("Update and Restart"))).clicked() {
+                if ui.add_enabled(!working, egui::Button::new(tl!("Update and Restart"))).clicked() {
                     start = true;
                 }
                 if ui.add_enabled(!working, egui::Button::new(tl!("Download"))).clicked() {
@@ -369,5 +370,17 @@ mod tests {
         output.textures_delta.clear();
         assert_eq!(action, Action::None);
         assert!(u.prompt_open());
+    }
+
+    /// 저장 안 한 문서가 있어도 Update and Restart 를 누를 수 있다 (저장 확인은 앱이 닫힐 때 한다).
+    #[test]
+    fn unsaved_work_keeps_update_and_restart_enabled() {
+        use egui_kittest::kittest::{NodeT, Queryable};
+        let mut u = WinUpdater::default();
+        u.offer("9.9.9", "https://example.invalid");
+        let mut h = egui_kittest::Harness::new_ui_state(|ui, u: &mut WinUpdater| drop(u.show(ui.ctx(), false)), u);
+        h.run();
+        assert!(!h.get_by_label("Update and Restart").accesskit_node().is_disabled());
+        h.get_by_label("You'll be asked to save your documents before the app restarts.");
     }
 }
