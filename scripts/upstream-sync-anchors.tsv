@@ -23,3 +23,6 @@ crates/ui-egui/i18n-cat/ko.tsv	Search Shapes	포크 한국어 번역
 packaging/macos/package-cat.sh	CRAFT_I18N_REQUIRED	mac 패키징 번역 필수
 packaging/windows/package-cat.ps1	CRAFT_I18N_REQUIRED	Windows 패키징 번역 필수
 crates/ui-egui/src/panels/dock.rs	\(Group::Cat, 0\)	CAT 탭 분기
+vendor/winit/src/platform_impl/macos/view.rs	key_text_undelivered	macOS 2벌식: 한 키 안의 확정 뒤 자모를 직접 확정 (받침 뒤 글자 삭제 방지)
+vendor/winit/src/platform_impl/macos/view.rs	let retry = false;	macOS 2벌식: 첫 키 재시도 끔 (첫 자모 중복 방지)
+Cargo.toml	winit = \{ path = "vendor/winit" \}	포크 winit 사용

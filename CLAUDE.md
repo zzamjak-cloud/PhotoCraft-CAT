@@ -36,6 +36,7 @@ PhotoCraft(Rust/egui) 비상업 개인 포크. 표시 이름은 **PhotoCAT**, �
 - **문서 닫기 안전 규칙**: 문서는 항상 `DocId` 로 특정한다(인덱스 보관 금지). `lib::doc::close_doc_without_saving` 은 CAT 임시 문서(`register_temp_doc`, `create_doc_copy_layers`, `duplicate_doc` 가 자동 등록)이거나 변경 없는 문서만 닫고, 사용자의 미저장 문서는 오류로 거부한다. `file.close` 를 직접 쓰지 않는다.
 - **저장**: `lib::export::save_doc_as` 는 `photocraft_io::export` 로 바이트를 만들고 같은 폴더 임시 파일 → rename. 실패해도 원본 파일 보존. 기본은 사본 저장(문서 경로 불변), `adopt_path` 면 Save As. 열린 문서의 원본 파일은 내보내기로 덮어쓰지 않는다(`ensure_not_open_document_path`).
 - **열기**: `lib::export::open_file` 은 동기 디코드 후 `session.add_document(doc, Some(path))`.
+- **winit 은 포크 사본**: `vendor/winit` (storytold/winit `a517b384` 복사, `Cargo.toml` `[patch]` 가 path 로 지정). macOS 2벌식은 조합 표시 없이 `insertText` 로 직전 글자를 교체하며 입력하는데, 원본은 `한`+ㄱ 의 "ㄱ" 을 앱에 보내지 않아 다음 교체가 "한" 을 지웠다(`view.rs` `key_text_undelivered`, 첫 키 재시도 끔). 원본 병합으로 winit rev 가 바뀌면 새 rev 를 다시 복사하고 이 패치를 옮긴다. 검증: `cd vendor/winit && cargo test --test ime_patches`.
 - **가이드/잠금/스마트 오브젝트 원본**: 문서 모델을 직접 읽는다 (`doc.guides`, `layer.locks`, `SmartSource::{Embedded, Linked}`).
 - **파일 다이얼로그**: 비동기(다음 프레임 응답). `lib::core::pick_files` / `pick_folder` 의 콜백에서 이어서 실행. 그래서 기능 `run` 은 경로를 인자로 받는다.
 - **모달**: `lib::core::{alert, confirm, prompt, prompt_size}` → `app.cat.modals` 큐, `ui::show_modals` 가 그린다. 실패 알림은 `run_safe(app, label, f)`.
