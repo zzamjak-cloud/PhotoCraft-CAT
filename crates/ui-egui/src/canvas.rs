@@ -342,7 +342,8 @@ fn paint_selection_outline(app: &mut PhotocraftApp, input: SelectionPaintInput<'
             let time = input.ui.input(|i| i.time);
             // A floating piece (and a selection being dragged) draws its ants where it is shown.
             let mut shown = input.xf;
-            if let Some((dx, dy)) = selection_shown_offset(app) {
+            // 이동 중인 오프셋은 활성 문서의 것: 분할 화면의 다른 문서 개미선은 제자리에 둔다.
+            if let Some((dx, dy)) = selection_shown_offset(app).filter(|_| app.session.active_index() == Some(input.idx)) {
                 shown.center = [input.xf.center[0] - dx as f32, input.xf.center[1] - dy as f32];
             }
             // Under a Free Transform box they are where the box puts them (#5297).
