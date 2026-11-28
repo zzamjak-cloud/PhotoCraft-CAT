@@ -211,11 +211,28 @@ pub fn open_for_command(app: &mut PhotocraftApp, label: &str, rgb: [f32; 3], com
 /// field shows the picked colour while the picker is open ([`live_preview`]); OK writes
 /// `"#rrggbb"` into `field` of dialog `dialog`, which stays open; Cancel puts it back as it was.
 pub fn open_for_field(app: &mut PhotocraftApp, label: &str, rgb: [f32; 3], dialog: u64, field: &str) -> u64 {
+    open_for_field_with_updates(app, label, rgb, dialog, field, Vec::new())
+}
+
+/// [`open_for_field`]에 더해 색상이 바뀔 때 함께 갱신할 보조 필드(`also`)를 지정한다.
+/// 예를 들어 프리셋 색상에서 바로 타일 색을 편집할 때 실시간 미리보기·확정 시 `custom`으로 전환하고,
+/// 취소 시 원래 프리셋 상태로 되돌릴 수 있다.
+fn open_for_field_with_updates(
+    app: &mut PhotocraftApp,
+    label: &str,
+    rgb: [f32; 3],
+    dialog: u64,
+    field: &str,
+    also: Vec<(String, Value)>,
+) -> u64 {
     let mut f = fields_with_web(app, "field", label, rgb);
     f.insert("__dialog".into(), json!(dialog));
     f.insert("__field".into(), json!(field));
+    if !also.is_empty() {
+        f.insert("__also".into(), Value::Array(also.iter().map(|(k, v)| json!([k, v])).collect()));
+    }
     let id = app.ui.open_dialog(DialogKind::Command, f);
-    live_preview::begin_field(app, id, dialog, field);
+    live_preview::begin_field_with_updates(app, id, dialog, field, also);
     id
 }
 
@@ -244,6 +261,41 @@ pub fn request(f: &mut Map<String, Value>, title: &str) {
 /// JSON pointer into the fields (`/values/guidesGridAndSlices/guideColor`).
 pub fn request_field(f: &mut Map<String, Value>, field: &str, title: &str) {
     f.insert(REQUEST.into(), json!({ "title": title, "field": field }));
+}
+
+/// [`request_field`]에 초기 표시 색상(`initial`)과 색상 변경 시 함께 갱신할 보조 필드(`also`)를 덧붙인다.
+pub fn request_field_with_updates(
+    f: &mut Map<String, Value>,
+    field: &str,
+    title: &str,
+    initial: Option<&str>,
+    also: Vec<(String, Value)>,
+) {
+    let mut req = Map::new();
+    req.insert("title".into(), json!(title));
+    req.insert("field".into(), json!(field));
+    if let Some(hex) = initial {
+        req.insert("initial".into(), json!(hex));
+    }
+    if !also.is_empty() {
+        req.insert("also".into(), Value::Array(also.into_iter().map(|(k, v)| json!([k, v])).collect()));
+    }
+    f.insert(REQUEST.into(), Value::Object(req));
+}
+
+/// `[[field, value], …]` 형식의 보조 갱신 목록을 안전하게 해석한다.
+fn parse_also(value: Option<&Value>) -> Vec<(String, Value)> {
+    value
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|item| {
+            let pair = item.as_array()?;
+            let key = pair.first()?.as_str()?.to_string();
+            let val = pair.get(1)?.clone();
+            Some((key, val))
+        })
+        .collect()
 }
 
 /// The picker's title for the colour called `name`: "Color Picker (Vine Color)".
@@ -292,21 +344,23 @@ fn set_field(f: &mut Map<String, Value>, field: &str, value: Value) -> Result<()
 /// changing the parent field; it is removed before the picker opens.
 pub fn open_requested(app: &mut PhotocraftApp, id: u64) {
     let Some(d) = app.ui.dialog_mut(id) else { return };
-    let (title, field) = match d.fields.remove(REQUEST) {
-        Some(Value::String(title)) => (title, "color".to_string()),
+    let (title, field, initial, also) = match d.fields.remove(REQUEST) {
+        Some(Value::String(title)) => (title, "color".to_string(), None, Vec::new()),
         Some(Value::Object(o)) => {
             let get = |k: &str| o.get(k).and_then(Value::as_str).map(str::to_string);
             let (Some(title), Some(field)) = (get("title"), get("field")) else { return };
-            (title, field)
+            (title, field, get("initial"), parse_also(o.get("also")))
         }
         _ => return,
     };
-    let rgb = field_value(&d.fields, &field)
+    let rgb = initial
+        .as_deref()
         .and_then(parse_hex)
+        .or_else(|| field_value(&d.fields, &field).and_then(parse_hex))
         .or_else(|| d.fields.get("__pickColorDefault").and_then(Value::as_str).and_then(parse_hex))
         .unwrap_or([0.0; 3]);
     d.fields.remove("__pickColorDefault");
-    open_for_field(app, &title, rgb, id, &field);
+    open_for_field_with_updates(app, &title, rgb, id, &field, also);
 }
 
 pub fn owns(f: &Map<String, Value>) -> bool {
@@ -999,7 +1053,14 @@ fn confirm_target(app: &mut PhotocraftApp, f: &Map<String, Value>) -> Result<Val
             return Err("the Color Picker has no field to set".into());
         };
         let d = app.ui.dialog_mut(dialog).ok_or("the dialog this colour was for is closed")?;
-        set_field(&mut d.fields, field, json!(color))?;
+        let also = parse_also(f.get("__also"));
+        // 보조 필드 전환(예: 프리셋 → 사용자 정의)이 걸린 경우 실제 색이 바뀌었을 때만 적용한다.
+        if also.is_empty() || f.get("color") != f.get("__orig") {
+            for (k, v) in also {
+                set_field(&mut d.fields, &k, v)?;
+            }
+            set_field(&mut d.fields, field, json!(color))?;
+        }
         return Ok(json!({ "color": color }));
     }
     if target == "widget" {

@@ -451,7 +451,7 @@ pub(super) fn draw_beyond_canvas(app: &mut PhotocraftApp, painter: &egui::Painte
     // A turned frame reaches as far as its corners.
     let f = crate::crop_ui::turned_bounds(f, crate::crop_ui::angle(app));
     let fr = DRect::new(f[0].floor() as i32, f[1].floor() as i32, f[2].ceil() as i32, f[3].ceil() as i32);
-    let square = app.session.prefs().transparency_and_gamut.square();
+    let square = crate::prefs_ui::effective_transparency_and_gamut(app).square();
     let checker_id = square.map(|_| checker(app, &ctx));
     let around = ring(c.extent.union(&fr), doc.bounds());
     // A turned view (Rotate View, or the Crop tool's default mode turning the image behind its

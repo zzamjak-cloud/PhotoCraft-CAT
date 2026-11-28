@@ -2,6 +2,7 @@ use super::appearance::{AppearanceRows, appearance_rows, system_theme};
 use super::dialogs::{mismatch_body, presets_body, presets_io_body, settings_height};
 use super::graphics::{gpu_memory_lines, gpu_status_rows, memory_usage_row, read_at_launch, rendering_mode_row};
 use super::shortcuts::shortcuts_body;
+use super::transparency::transparency_and_gamut_groups;
 use super::{Color32, Map, PhotocraftApp, RichText, SECTIONS, Sense, Tokens, Value, json, prefs, vec2};
 
 // ------------------------------------------------------------------ bodies
@@ -285,8 +286,14 @@ fn prefs_body(ui: &mut egui::Ui, f: &mut Map<String, Value>, system: Option<egui
     f.insert("__search".into(), json!(search));
     f.insert("values".into(), values);
     // A colour swatch was clicked: open the Color Picker on that value (#2144).
-    if let Some((path, name)) = ctx_take_pick(ui) {
-        crate::color_picker_ui::request_field(f, &format!("/values/{}", path.replace('.', "/")), &crate::color_picker_ui::title_for(&name));
+    if let Some(pick) = ctx_take_pick(ui) {
+        let field = format!("/values/{}", pick.path.replace('.', "/"));
+        let title = crate::color_picker_ui::title_for(&pick.label);
+        if pick.initial.is_none() && pick.also.is_empty() {
+            crate::color_picker_ui::request_field(f, &field, &title);
+        } else {
+            crate::color_picker_ui::request_field_with_updates(f, &field, &title, pick.initial.as_deref(), pick.also);
+        }
     }
 }
 
@@ -319,7 +326,7 @@ pub(super) fn tools_field_visible(obj: &Map<String, Value>, key: &str) -> bool {
 
 /// A titled, outlined group of settings (Photoshop's Interface page has Appearance,
 /// Presentation and Options).
-fn pref_group(ui: &mut egui::Ui, title: &str, add: impl FnOnce(&mut egui::Ui)) {
+pub(super) fn pref_group(ui: &mut egui::Ui, title: &str, add: impl FnOnce(&mut egui::Ui)) {
     let t = Tokens::get(ui.ctx());
     egui::Frame::new().stroke(egui::Stroke::new(1.0, t.card_border)).corner_radius(t.radius).inner_margin(10.0).show(ui, |ui| {
         ui.set_width(ui.available_width());
@@ -372,9 +379,29 @@ fn interface_groups(ui: &mut egui::Ui, obj: &mut Map<String, Value>, keys: &[Str
 /// holds the fields the Color Picker request goes in.
 const PICK_ID: &str = "prefs-pick-color";
 
-/// The colour swatch clicked this frame, if any: (preference path, label).
-fn ctx_take_pick(ui: &egui::Ui) -> Option<(String, String)> {
-    ui.ctx().data_mut(|d| d.remove_temp::<(String, String)>(egui::Id::unique(PICK_ID)))
+/// 환경설정 색상 견본 클릭 시 색상 피커에 넘길 요청 정보.
+#[derive(Clone, Default)]
+pub(super) struct PickRequest {
+    pub(super) path: String,
+    pub(super) label: String,
+    pub(super) initial: Option<String>,
+    pub(super) also: Vec<(String, Value)>,
+}
+
+impl PickRequest {
+    pub(super) fn simple(path: String, label: String) -> Self {
+        Self { path, label, initial: None, also: Vec::new() }
+    }
+}
+
+/// 이번 프레임에 클릭된 색상 견본의 피커 요청을 임시 저장한다.
+pub(super) fn request_pick(ui: &egui::Ui, pick: PickRequest) {
+    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(PICK_ID), pick));
+}
+
+/// The colour swatch clicked this frame, if any.
+fn ctx_take_pick(ui: &egui::Ui) -> Option<PickRequest> {
+    ui.ctx().data_mut(|d| d.remove_temp::<PickRequest>(egui::Id::unique(PICK_ID)))
 }
 
 /// Whether `section.key` gets a generic row for this search (`query`, lowercased; empty matches
@@ -412,6 +439,10 @@ pub(super) fn section_fields(
     keys.extend(obj.keys().filter(|k| !order.contains(k)).cloned());
     if section == "interface" {
         interface_groups(ui, obj, &keys, lang, system, query);
+        return;
+    }
+    if section == "transparencyAndGamut" {
+        transparency_and_gamut_groups(ui, obj, &keys, query);
         return;
     }
     if section == "performance" && (query.is_empty() || preference_matches(section, "renderingMode", query)) {
@@ -510,7 +541,7 @@ fn field_rows(ui: &mut egui::Ui, section: &str, obj: &mut Map<String, Value>, ke
                 ui.horizontal(|ui| {
                     // PhotoCraft's Color Picker, as everywhere else (#2144).
                     if crate::widgets::color_swatch_button(ui, egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]), &label).clicked() {
-                        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(PICK_ID), (path.clone(), label.clone())));
+                        request_pick(ui, PickRequest::simple(path.clone(), label.clone()));
                     }
                     hex_field(ui, &path, &mut rgb);
                 });

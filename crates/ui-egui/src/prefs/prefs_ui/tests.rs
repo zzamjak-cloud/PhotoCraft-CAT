@@ -2513,3 +2513,150 @@ fn background_prefs_write_lands_off_the_ui_thread_and_exit_waits_for_it() {
     assert!(app.prefs_rt.prefs_write.is_none());
     assert_eq!(stored(&store)["toolColors"]["foreground"], json!(fg));
 }
+
+#[test]
+fn transparency_section_shows_preview_and_live_picker_switches_preset_and_reverts_on_cancel() {
+    use egui::accesskit::Role;
+    use egui_kittest::{Harness, kittest::Queryable};
+
+    let (mut app, _) = app_with_store();
+    app.run(
+        "prefs.set",
+        json!({"values": {
+            "interface.language": "en",
+            "transparencyAndGamut.gridSize": "medium",
+            "transparencyAndGamut.gridColors": "dark",
+            "transparencyAndGamut.customLight": "#ffffff",
+            "transparencyAndGamut.customDark": "#ababab"
+        }}),
+    )
+    .unwrap();
+    let prefs_id = open_preferences(&mut app, "transparencyAndGamut");
+    let mut h = Harness::builder().with_size(vec2(1280.0, 800.0)).build_eframe(move |cc| {
+        PhotocraftApp::setup_context(&cc.egui_ctx, Default::default());
+        app
+    });
+    h.run_steps(4);
+
+    // 미리보기 영역과 두 섹션 그룹이 보이고, Dark 프리셋의 실제 색(#666666/#333333)이 표시된다.
+    assert!(h.query_by_role_and_label(Role::Image, "Preview").is_some(), "체크 미리보기가 표시돼야 한다");
+    assert!(h.query_all_by_label("Transparency").next().is_some());
+    assert!(h.query_all_by_label("Gamut Warning").next().is_some());
+    let hex_values: Vec<String> = h.query_all_by_role(Role::TextInput).filter_map(|n| n.value()).collect();
+    assert!(hex_values.contains(&"#666666".to_string()), "밝은 타일 hex는 프리셋 활성 색이어야 한다: {hex_values:?}");
+    assert!(hex_values.contains(&"#333333".to_string()), "어두운 타일 hex는 프리셋 활성 색이어야 한다: {hex_values:?}");
+
+    // 밝은 타일 견본 클릭 → 색상 피커가 #666666으로 열리고, 드래그(색 변경) 시 custom으로 실시간 미리보기된다.
+    h.get_by_role_and_label(Role::ColorWell, "Custom light").click();
+    h.run_steps(4);
+    let picker = crate::color_picker_ui::top(h.state()).expect("색상 피커가 열려야 한다");
+    assert_eq!(h.state().ui.dialogs.iter().find(|d| d.id == picker).unwrap().fields["color"], json!("#666666"));
+    h.state_mut().ui.dialog_mut(picker).unwrap().fields.insert("color".into(), json!("#224466"));
+    h.run_steps(4);
+
+    let draft = h.state().ui.dialogs.iter().find(|d| d.id == prefs_id).unwrap().fields["values"]["transparencyAndGamut"].clone();
+    assert_eq!(draft["gridColors"], json!("custom"));
+    assert_eq!(draft["customLight"], json!("#224466"));
+    assert_eq!(draft["customDark"], json!("#333333"), "다른 쪽 타일은 프리셋 색이 유지돼야 한다");
+    let style = canvas_style(h.state());
+    assert!((style.checker_light[0] - 0x22 as f32 / 255.0).abs() < 1e-4);
+    assert!((style.checker_dark[0] - 0x33 as f32 / 255.0).abs() < 1e-4);
+
+    // 색상 피커 취소 → 프리셋 Dark와 원래 custom 값이 그대로 복원된다.
+    crate::dialogs::cancel(h.state_mut(), picker).unwrap();
+    h.run_steps(2);
+    let restored = h.state().ui.dialogs.iter().find(|d| d.id == prefs_id).unwrap().fields["values"]["transparencyAndGamut"].clone();
+    assert_eq!(restored["gridColors"], json!("dark"));
+    assert_eq!(restored["customLight"], json!("#ffffff"));
+    assert_eq!(restored["customDark"], json!("#ababab"));
+    let style_after_cancel = canvas_style(h.state());
+    assert!((style_after_cancel.checker_light[0] - 0x66 as f32 / 255.0).abs() < 1e-4);
+
+    // 다시 열어 색을 바꾸고 OK → custom으로 확정되고 캔버스 스타일에 반영되며, 환경설정 취소 시 저장 값으로 복원된다.
+    h.get_by_role_and_label(Role::ColorWell, "Custom light").click();
+    h.run_steps(4);
+    let picker = crate::color_picker_ui::top(h.state()).expect("색상 피커가 다시 열려야 한다");
+    h.state_mut().ui.dialog_mut(picker).unwrap().fields.insert("color".into(), json!("#224466"));
+    h.run_steps(2);
+    crate::dialogs::confirm(h.state_mut(), picker).unwrap();
+    h.run_steps(2);
+    let committed = h.state().ui.dialogs.iter().find(|d| d.id == prefs_id).unwrap().fields["values"]["transparencyAndGamut"].clone();
+    assert_eq!(committed["gridColors"], json!("custom"));
+    assert_eq!(committed["customLight"], json!("#224466"));
+    assert_eq!(committed["customDark"], json!("#333333"));
+    assert!((canvas_style(h.state()).checker_light[0] - 0x22 as f32 / 255.0).abs() < 1e-4);
+
+    crate::dialogs::cancel(h.state_mut(), prefs_id).unwrap();
+    assert!((canvas_style(h.state()).checker_light[0] - 0x66 as f32 / 255.0).abs() < 1e-4);
+}
+
+#[test]
+fn transparency_hex_edit_switches_preset_to_custom_and_keeps_other_tile() {
+    use egui::accesskit::Role;
+    use egui_kittest::{Harness, kittest::Queryable};
+
+    let (mut app, _) = app_with_store();
+    app.run(
+        "prefs.set",
+        json!({"values": {
+            "interface.language": "en",
+            "transparencyAndGamut.gridColors": "dark",
+            "transparencyAndGamut.customLight": "#ffffff",
+            "transparencyAndGamut.customDark": "#ababab"
+        }}),
+    )
+    .unwrap();
+    let prefs_id = open_preferences(&mut app, "transparencyAndGamut");
+    let mut h = Harness::builder().with_size(vec2(1280.0, 800.0)).build_eframe(move |cc| {
+        PhotocraftApp::setup_context(&cc.egui_ctx, Default::default());
+        app
+    });
+    h.run_steps(4);
+
+    let light_hex = h
+        .query_all_by_role(Role::TextInput)
+        .find(|n| n.value().as_deref() == Some("#666666"))
+        .expect("밝은 타일 hex 입력란이 있어야 한다");
+    light_hex.click();
+    h.run_steps(1);
+    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    h.run_steps(1);
+    for ch in "#8899aa".chars() {
+        h.event(egui::Event::Text(ch.to_string()));
+        h.run_steps(1);
+    }
+
+    let draft = h.state().ui.dialogs.iter().find(|d| d.id == prefs_id).unwrap().fields["values"]["transparencyAndGamut"].clone();
+    assert_eq!(draft["gridColors"], json!("custom"));
+    assert_eq!(draft["customLight"], json!("#8899aa"));
+    assert_eq!(draft["customDark"], json!("#333333"));
+}
+
+#[test]
+fn transparency_search_hides_non_matching_group() {
+    use egui::accesskit::Role;
+    use egui_kittest::{Harness, kittest::Queryable};
+
+    let render = |search: &str| {
+        let (mut app, _) = app_with_store();
+        app.run("prefs.set", json!({"values": {"interface.language": "en"}})).unwrap();
+        let id = open_preferences(&mut app, "transparencyAndGamut");
+        app.ui.dialog_mut(id).unwrap().fields.insert("__search".into(), json!(search));
+        let mut h = Harness::builder().with_size(vec2(1000.0, 750.0)).build_eframe(move |cc| {
+            PhotocraftApp::setup_context(&cc.egui_ctx, Default::default());
+            app
+        });
+        h.run_steps(4);
+        h
+    };
+
+    // "opacity"는 섹션 제목("Transparency & Gamut")에 없으므로 Gamut Warning 그룹만 남아야 한다.
+    let opacity = render("opacity");
+    assert!(opacity.query_all_by_label("Gamut Warning").next().is_some());
+    assert!(opacity.query_by_role_and_label(Role::Image, "Preview").is_none());
+
+    let grid = render("grid");
+    assert!(grid.query_all_by_label("Transparency").next().is_some());
+    assert!(grid.query_by_role_and_label(Role::Image, "Preview").is_some());
+    assert!(grid.query_all_by_label("Gamut Warning").next().is_none());
+}

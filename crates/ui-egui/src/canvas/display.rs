@@ -3,7 +3,7 @@ use super::{Color32, Document, LayerContent, PhotocraftApp, TextureOptions};
 
 pub(super) fn checker(app: &mut PhotocraftApp, ctx: &egui::Context) -> egui::TextureId {
     // Preferences › Transparency & Gamut colours (the texture is rebuilt when they change).
-    let [ca, cb] = app.session.prefs().transparency_and_gamut.colors();
+    let [ca, cb] = crate::prefs_ui::effective_transparency_and_gamut(app).colors();
     if app.prefs_rt.checker_key != Some([ca, cb]) {
         app.prefs_rt.checker_key = Some([ca, cb]);
         app.checker = None;

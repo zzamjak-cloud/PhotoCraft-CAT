@@ -513,7 +513,7 @@ fn paint_canvas(
             painter.add(egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(150) }.as_shape(shadow_rect, 0));
         }
         let rotated = view.rotation.abs() > 0.05;
-        let checkerboard = app.session.prefs().transparency_and_gamut.square().map(|square| (checker(app, ctx), square));
+        let checkerboard = crate::prefs_ui::effective_transparency_and_gamut(app).square().map(|square| (checker(app, ctx), square));
         // Repeated-quad coverage is not proven identical on all Pattern Preview adapters.
         // Retain its legacy checker submissions, including the central document's.
         let opaque = !app.ui.view.pattern_preview && app.canvases.get(&cache_key(doc.id, output)).is_some_and(|c| c.texture_opaque) && tex.is_some();

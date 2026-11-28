@@ -26,3 +26,4 @@ crates/ui-egui/src/panels/dock.rs	\(Group::Cat, 0\)	CAT 탭 분기
 vendor/winit/src/platform_impl/macos/view.rs	key_text_undelivered	macOS 2벌식: 한 키 안의 확정 뒤 자모를 직접 확정 (받침 뒤 글자 삭제 방지)
 vendor/winit/src/platform_impl/macos/view.rs	let retry = false;	macOS 2벌식: 첫 키 재시도 끔 (첫 자모 중복 방지)
 Cargo.toml	winit = \{ path = "vendor/winit" \}	포크 winit 사용
+crates/ui-egui/src/prefs/prefs_ui/transparency.rs	fn transparency_and_gamut_groups	투명도 설정 실시간 체크 미리보기 및 프리셋→사용자 정의 전환

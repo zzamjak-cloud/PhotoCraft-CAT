@@ -2,9 +2,23 @@ use super::dialogs::open_preferences;
 use super::fields::{choice_label, color_of, preference_matches};
 use super::{AppearanceMode, Color32, DarkTheme, LightTheme, Map, PhotocraftApp, RichText, SavedTheme, Sense, ThemeKind, Tokens, Value, json, prefs, vec2};
 
+/// 환경설정 대화상자가 열려 있는 동안 편집 중인 투명도·색상 범위 초안을 우선 반환한다.
+/// 대화상자를 취소해 닫으면 저장된 환경설정으로 즉시 복원된다.
+pub fn effective_transparency_and_gamut(app: &PhotocraftApp) -> prefs::TransparencyAndGamut {
+    app.ui
+        .dialogs
+        .iter()
+        .rev()
+        .find(|d| super::is_preferences(&d.fields))
+        .and_then(|d| d.fields.get("values"))
+        .and_then(|v| v.get("transparencyAndGamut"))
+        .and_then(|v| serde_json::from_value::<prefs::TransparencyAndGamut>(v.clone()).ok())
+        .unwrap_or_else(|| app.session.prefs().transparency_and_gamut.clone())
+}
+
 /// The GPU canvas colours from Preferences › Transparency & Gamut.
 pub fn canvas_style(app: &PhotocraftApp) -> crate::gpu_canvas::CanvasStyle {
-    let t = &app.session.prefs().transparency_and_gamut;
+    let t = effective_transparency_and_gamut(app);
     let [l, d] = t.colors();
     let f = |c: [u8; 3]| c.map(|v| v as f32 / 255.0);
     let g = prefs::parse_hex(&t.gamut_warning_color).unwrap_or([128; 3]);

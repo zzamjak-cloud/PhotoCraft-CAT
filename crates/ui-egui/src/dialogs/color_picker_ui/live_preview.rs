@@ -21,7 +21,7 @@ use crate::crop_shield::ShieldColor;
 /// A live target as it was when its picker opened.
 enum Before {
     /// `field` of dialog `parent`, with all of that dialog's fields.
-    Field { parent: u64, field: String, fields: Map<String, Value> },
+    Field { parent: u64, field: String, also: Vec<(String, Value)>, fields: Map<String, Value> },
     /// The Crop shield's colour choice and custom colour.
     CropShield { color: ShieldColor, custom: [u8; 3] },
 }
@@ -34,10 +34,17 @@ pub(crate) struct Live {
     shown: Option<String>,
 }
 
-/// Preview picker `picker` in `field` of dialog `parent` (a key or a JSON pointer).
-pub(super) fn begin_field(app: &mut PhotocraftApp, picker: u64, parent: u64, field: &str) {
+/// Preview picker `picker` in `field` of dialog `parent` (a key or a JSON pointer), along with
+/// optional companion updates (`also`) applied while previewing and reverted on cancel.
+pub(super) fn begin_field_with_updates(
+    app: &mut PhotocraftApp,
+    picker: u64,
+    parent: u64,
+    field: &str,
+    also: Vec<(String, Value)>,
+) {
     let Some(d) = app.ui.dialogs.iter().find(|d| d.id == parent) else { return };
-    let before = Before::Field { parent, field: field.into(), fields: d.fields.clone() };
+    let before = Before::Field { parent, field: field.into(), also, fields: d.fields.clone() };
     app.color_picker_live.push(Live { picker, before, shown: None });
 }
 
@@ -89,9 +96,12 @@ fn shield_rgb(color: &str) -> Option<[u8; 3]> {
 /// the target is gone.
 fn show(app: &mut PhotocraftApp, before: &mut Before, shown: Option<&str>, color: Option<&str>) -> Result<(), String> {
     match before {
-        Before::Field { parent, field, fields } => {
+        Before::Field { parent, field, also, fields } => {
             let mut next = fields.clone();
             if let Some(c) = color {
+                for (k, v) in also.iter() {
+                    set_field(&mut next, k, v.clone())?;
+                }
                 set_field(&mut next, field, json!(c))?;
             }
             app.ui.dialog_mut(*parent).ok_or("the dialog this colour was for is closed")?.fields = next;

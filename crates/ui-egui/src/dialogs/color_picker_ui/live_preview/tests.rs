@@ -315,6 +315,7 @@ fn a_pickers_target_stays_the_dialog_it_opened_on() {
     };
     assert_eq!(set(&mut app, "__dialog", json!(other)), Some(false));
     assert_eq!(set(&mut app, "__field", json!("opacity")), Some(false));
+    assert_eq!(set(&mut app, "__also", json!([["opacity", 10]])), Some(false));
     assert_eq!(set(&mut app, "__colorPicker", json!("cropShield")), Some(false), "nor can its OK go to the Crop shield");
     assert_eq!(set(&mut app, "color", json!("#336699")), Some(true), "the colour itself stays drivable");
     assert_eq!(fields(&app, fill)["color"], json!("#336699"));
